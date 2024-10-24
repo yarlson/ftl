@@ -76,7 +76,7 @@ func (d *Deployment) Deploy(project string, cfg *config.Config) error {
 	}
 
 	if err := console.ProgressSpinner(context.Background(), "Starting proxy", "Proxy started", []func() error{
-		func() error { return d.StartProxy(cfg.Project.Name, cfg) },
+		func() error { return d.startProxy(cfg.Project.Name, cfg) },
 	}); err != nil {
 		return fmt.Errorf("failed to start proxy: %w", err)
 	}
@@ -84,7 +84,7 @@ func (d *Deployment) Deploy(project string, cfg *config.Config) error {
 	return nil
 }
 
-func (d *Deployment) StartProxy(project string, cfg *config.Config) error {
+func (d *Deployment) startProxy(project string, cfg *config.Config) error {
 	projectPath, err := d.prepareProjectFolder(project)
 	if err != nil {
 		return fmt.Errorf("failed to prepare project folder: %w", err)
@@ -144,7 +144,7 @@ func (d *Deployment) startDependency(project string, dependency *config.Dependen
 	return nil
 }
 
-func (d *Deployment) InstallService(project string, service *config.Service) error {
+func (d *Deployment) installService(project string, service *config.Service) error {
 	if _, err := d.pullImage(service.Image); err != nil {
 		return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)
 	}
@@ -162,7 +162,7 @@ func (d *Deployment) InstallService(project string, service *config.Service) err
 	return nil
 }
 
-func (d *Deployment) UpdateService(project string, service *config.Service) error {
+func (d *Deployment) updateService(project string, service *config.Service) error {
 	svcName := service.Name
 
 	if _, err := d.pullImage(service.Image); err != nil {
@@ -458,7 +458,7 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 
 	containerInfo, err := d.getContainerInfo(service.Name, project)
 	if err != nil {
-		if err := d.InstallService(project, service); err != nil {
+		if err := d.installService(project, service); err != nil {
 			return fmt.Errorf("failed to install service %s: %w", service.Name, err)
 		}
 
@@ -466,7 +466,7 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 	}
 
 	if hash != containerInfo.Image {
-		if err := d.UpdateService(project, service); err != nil {
+		if err := d.updateService(project, service); err != nil {
 			return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
 		}
 
@@ -479,7 +479,7 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 	}
 
 	if changed {
-		if err := d.UpdateService(project, service); err != nil {
+		if err := d.updateService(project, service); err != nil {
 			return fmt.Errorf("failed to update service %s due to config change: %w", service.Name, err)
 		}
 	}
@@ -671,7 +671,7 @@ func (d *Deployment) transferImageBlobs(ctx context.Context, remoteHost, remoteU
 	localBlobsDir := filepath.Join(localPath, "blobs", "sha256")
 	remoteBlobsDir := filepath.Join(remotePath, "blobs", "sha256")
 
-	localBlobs, err := d.listFiles(ctx, localBlobsDir)
+	localBlobs, err := d.listFiles(localBlobsDir)
 	if err != nil {
 		return fmt.Errorf("failed to list local blobs: %w", err)
 	}
@@ -698,7 +698,7 @@ func (d *Deployment) cleanupRemoteBlobs(ctx context.Context, remoteHost, remoteU
 	localBlobsDir := filepath.Join(localPath, "blobs", "sha256")
 	remoteBlobsDir := filepath.Join(remotePath, "blobs", "sha256")
 
-	localBlobs, err := d.listFiles(ctx, localBlobsDir)
+	localBlobs, err := d.listFiles(localBlobsDir)
 	if err != nil {
 		return fmt.Errorf("failed to list local blobs: %w", err)
 	}
@@ -726,7 +726,7 @@ func (d *Deployment) loadImageOnRemoteHost(ctx context.Context, remoteHost, remo
 	return err
 }
 
-func (d *Deployment) listFiles(ctx context.Context, dir string) ([]string, error) {
+func (d *Deployment) listFiles(dir string) ([]string, error) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
