@@ -533,3 +533,236 @@ func (d *Deployment) createVolume(project, volume string) error {
 
 	return nil
 }
+
+func (d *Deployment) CopyDockerImage(ctx context.Context, remoteHost, remoteUser, imageName string) error {
+	localStore := filepath.Join(os.Getenv("HOME"), "docker-images")
+	remoteStore, err := d.getRemoteDockerImageStore(ctx, remoteHost, remoteUser)
+	if err != nil {
+		return fmt.Errorf("failed to get remote docker image store: %w", err)
+	}
+
+	if needsSync, err := d.imageNeedsSync(ctx, remoteHost, remoteUser, imageName); err != nil {
+		return fmt.Errorf("failed to check if image needs sync: %w", err)
+	} else if !needsSync {
+		fmt.Println("Images are identical on both hosts. Skipping sync.")
+		return nil
+	}
+
+	imageDir := strings.ReplaceAll(strings.ReplaceAll(imageName, ":", "_"), "/", "_")
+	localPath := filepath.Join(localStore, imageDir)
+	remotePath := filepath.Join(remoteStore, imageDir)
+
+	if err := d.saveAndExtractImage(ctx, imageName, localPath); err != nil {
+		return fmt.Errorf("failed to save and extract image: %w", err)
+	}
+
+	if err := d.createRemoteDirectory(ctx, remoteHost, remoteUser, remotePath); err != nil {
+		return fmt.Errorf("failed to create remote directory: %w", err)
+	}
+
+	if err := d.transferImageMetadata(ctx, remoteHost, remoteUser, localPath, remotePath); err != nil {
+		return fmt.Errorf("failed to transfer image metadata: %w", err)
+	}
+
+	if err := d.transferImageBlobs(ctx, remoteHost, remoteUser, localPath, remotePath); err != nil {
+		return fmt.Errorf("failed to transfer image blobs: %w", err)
+	}
+
+	if err := d.cleanupRemoteBlobs(ctx, remoteHost, remoteUser, localPath, remotePath); err != nil {
+		return fmt.Errorf("failed to cleanup remote blobs: %w", err)
+	}
+
+	if err := d.loadImageOnRemoteHost(ctx, remoteHost, remoteUser, remotePath); err != nil {
+		return fmt.Errorf("failed to load image on remote host: %w", err)
+	}
+
+	fmt.Println("Image sync completed successfully!")
+	return nil
+}
+
+func (d *Deployment) getRemoteDockerImageStore(ctx context.Context, remoteHost, remoteUser string) (string, error) {
+	cmd := fmt.Sprintf("echo $HOME/docker-images")
+	output, err := d.runRemoteCommand(ctx, remoteHost, remoteUser, cmd)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
+func (d *Deployment) imageNeedsSync(ctx context.Context, remoteHost, remoteUser, imageName string) (bool, error) {
+	localInspect, err := d.runCommand(ctx, "docker", "inspect", imageName)
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect local image: %w", err)
+	}
+
+	remoteInspect, err := d.runRemoteCommand(ctx, remoteHost, remoteUser, fmt.Sprintf("docker inspect %s", imageName))
+	if err != nil {
+		return true, nil
+	}
+
+	var localData, remoteData []map[string]interface{}
+	if err := json.Unmarshal([]byte(localInspect), &localData); err != nil {
+		return false, fmt.Errorf("failed to unmarshal local inspect data: %w", err)
+	}
+	if err := json.Unmarshal([]byte(remoteInspect), &remoteData); err != nil {
+		return false, fmt.Errorf("failed to unmarshal remote inspect data: %w", err)
+	}
+
+	if len(localData) == 0 || len(remoteData) == 0 {
+		return true, nil
+	}
+
+	localConfig := localData[0]["Config"].(map[string]interface{})
+	remoteConfig := remoteData[0]["Config"].(map[string]interface{})
+	delete(localConfig, "Image")
+	delete(remoteConfig, "Image")
+
+	return !jsonEqual(localConfig, remoteConfig) || !jsonEqual(localData[0]["RootFS"], remoteData[0]["RootFS"]), nil
+}
+
+func jsonEqual(a, b interface{}) bool {
+	ja, err := json.Marshal(a)
+	if err != nil {
+		return false
+	}
+	jb, err := json.Marshal(b)
+	if err != nil {
+		return false
+	}
+	return string(ja) == string(jb)
+}
+
+func (d *Deployment) saveAndExtractImage(ctx context.Context, imageName, localPath string) error {
+	if err := os.MkdirAll(localPath, 0755); err != nil {
+		return fmt.Errorf("failed to create local directory: %w", err)
+	}
+
+	tarPath := filepath.Join(localPath, "image.tar")
+	if _, err := d.runCommand(ctx, "docker", "save", imageName, "-o", tarPath); err != nil {
+		return fmt.Errorf("failed to save docker image: %w", err)
+	}
+
+	if _, err := d.runCommand(ctx, "tar", "xf", tarPath, "-C", localPath); err != nil {
+		return fmt.Errorf("failed to extract image: %w", err)
+	}
+
+	return os.Remove(tarPath)
+}
+
+func (d *Deployment) createRemoteDirectory(ctx context.Context, remoteHost, remoteUser, remotePath string) error {
+	cmd := fmt.Sprintf("mkdir -p %s/blobs/sha256", remotePath)
+	_, err := d.runRemoteCommand(ctx, remoteHost, remoteUser, cmd)
+	return err
+}
+
+func (d *Deployment) transferImageMetadata(ctx context.Context, remoteHost, remoteUser, localPath, remotePath string) error {
+	metadataFiles := []string{"index.json", "manifest.json", "oci-layout"}
+	for _, file := range metadataFiles {
+		localFile := filepath.Join(localPath, file)
+		remoteFile := filepath.Join(remotePath, file)
+		if err := d.copyFileToRemote(ctx, remoteHost, remoteUser, localFile, remoteFile); err != nil {
+			return fmt.Errorf("failed to copy %s: %w", file, err)
+		}
+	}
+	return nil
+}
+
+func (d *Deployment) transferImageBlobs(ctx context.Context, remoteHost, remoteUser, localPath, remotePath string) error {
+	localBlobsDir := filepath.Join(localPath, "blobs", "sha256")
+	remoteBlobsDir := filepath.Join(remotePath, "blobs", "sha256")
+
+	localBlobs, err := d.listFiles(ctx, localBlobsDir)
+	if err != nil {
+		return fmt.Errorf("failed to list local blobs: %w", err)
+	}
+
+	remoteBlobs, err := d.listRemoteFiles(ctx, remoteHost, remoteUser, remoteBlobsDir)
+	if err != nil {
+		return fmt.Errorf("failed to list remote blobs: %w", err)
+	}
+
+	for _, blob := range localBlobs {
+		if !contains(remoteBlobs, blob) {
+			localFile := filepath.Join(localBlobsDir, blob)
+			remoteFile := filepath.Join(remoteBlobsDir, blob)
+			if err := d.copyFileToRemote(ctx, remoteHost, remoteUser, localFile, remoteFile); err != nil {
+				return fmt.Errorf("failed to copy blob %s: %w", blob, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (d *Deployment) cleanupRemoteBlobs(ctx context.Context, remoteHost, remoteUser, localPath, remotePath string) error {
+	localBlobsDir := filepath.Join(localPath, "blobs", "sha256")
+	remoteBlobsDir := filepath.Join(remotePath, "blobs", "sha256")
+
+	localBlobs, err := d.listFiles(ctx, localBlobsDir)
+	if err != nil {
+		return fmt.Errorf("failed to list local blobs: %w", err)
+	}
+
+	remoteBlobs, err := d.listRemoteFiles(ctx, remoteHost, remoteUser, remoteBlobsDir)
+	if err != nil {
+		return fmt.Errorf("failed to list remote blobs: %w", err)
+	}
+
+	for _, blob := range remoteBlobs {
+		if !contains(localBlobs, blob) {
+			cmd := fmt.Sprintf("rm -f %s", filepath.Join(remoteBlobsDir, blob))
+			if _, err := d.runRemoteCommand(ctx, remoteHost, remoteUser, cmd); err != nil {
+				return fmt.Errorf("failed to remove obsolete blob %s: %w", blob, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (d *Deployment) loadImageOnRemoteHost(ctx context.Context, remoteHost, remoteUser, remotePath string) error {
+	cmd := fmt.Sprintf("cd %s && tar -cf - . | docker load", remotePath)
+	_, err := d.runRemoteCommand(ctx, remoteHost, remoteUser, cmd)
+	return err
+}
+
+func (d *Deployment) listFiles(ctx context.Context, dir string) ([]string, error) {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var fileNames []string
+	for _, file := range files {
+		if !file.IsDir() {
+			fileNames = append(fileNames, file.Name())
+		}
+	}
+	return fileNames, nil
+}
+
+func (d *Deployment) listRemoteFiles(ctx context.Context, remoteHost, remoteUser, dir string) ([]string, error) {
+	cmd := fmt.Sprintf("ls -1 %s 2>/dev/null || true", dir)
+	output, err := d.runRemoteCommand(ctx, remoteHost, remoteUser, cmd)
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(output), nil
+}
+
+func (d *Deployment) copyFileToRemote(ctx context.Context, remoteHost, remoteUser, localFile, remoteFile string) error {
+	return d.executor.CopyFile(ctx, localFile, fmt.Sprintf("%s@%s:%s", remoteUser, remoteHost, remoteFile))
+}
+
+func (d *Deployment) runRemoteCommand(ctx context.Context, remoteHost, remoteUser, command string) (string, error) {
+	sshCommand := fmt.Sprintf("ssh -o Compression=no -o TCPKeepAlive=yes -o ServerAliveInterval=60 %s@%s %s", remoteUser, remoteHost, command)
+	return d.runCommand(ctx, "bash", "-c", sshCommand)
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
