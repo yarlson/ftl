@@ -3,6 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -69,7 +72,7 @@ func (s *Server) RunSetup(ctx context.Context, dockerUsername, dockerPassword st
 	}
 
 	if dockerUsername != "" && dockerPassword != "" {
-		if err := configureDockerHub(ctx, s.client, dockerUsername, dockerPassword); err != nil {
+		if err := s.configureDockerHub(ctx, dockerUsername, dockerPassword); err != nil {
 			return fmt.Errorf("failed to configure docker hub: %w", err)
 		}
 	}
@@ -149,7 +152,21 @@ func (s *Server) createServerUser(ctx context.Context) error {
 }
 
 func (s *Server) setupServerSSHKey(ctx context.Context) error {
-	userPubKey, err := ssh.ParsePrivateKey([]byte(s.config.SSHKey))
+	var keyPath = s.config.SSHKey
+	if strings.HasPrefix(s.config.SSHKey, "~") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		keyPath = filepath.Join(home, keyPath[1:])
+	}
+
+	bKeys, err := os.ReadFile(keyPath)
+	if err != nil {
+		return fmt.Errorf("failed to read SSH key: %w", err)
+	}
+
+	userPubKey, err := ssh.ParsePrivateKey(bKeys)
 	if err != nil {
 		return fmt.Errorf("failed to parse user private key for server access: %w", err)
 	}
@@ -171,12 +188,12 @@ func (s *Server) setupServerSSHKey(ctx context.Context) error {
 	)
 }
 
-func configureDockerHub(ctx context.Context, client *sshPkg.Client, dockerUsername, dockerPassword string) error {
+func (s *Server) configureDockerHub(ctx context.Context, dockerUsername, dockerPassword string) error {
 	commands := []string{
 		fmt.Sprintf("docker login -u %s -p %s", dockerUsername, dockerPassword),
 	}
 
-	return client.RunCommandWithProgress(
+	return s.client.RunCommandWithProgress(
 		ctx,
 		"Logging into Docker Hub...",
 		"Logged into Docker Hub successfully.",
