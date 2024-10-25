@@ -152,32 +152,36 @@ func (s *Server) createServerUser(ctx context.Context) error {
 }
 
 func (s *Server) setupServerSSHKey(ctx context.Context) error {
-	var keyPath = s.config.SSHKey
-	if strings.HasPrefix(s.config.SSHKey, "~") {
-		home, err := os.UserHomeDir()
+	keyPath := s.config.SSHKey
+	if strings.HasPrefix(keyPath, "~") {
+		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
+			return fmt.Errorf("get home directory: %w", err)
 		}
-		keyPath = filepath.Join(home, keyPath[1:])
+		keyPath = filepath.Join(homeDir, keyPath[1:])
 	}
 
-	bKeys, err := os.ReadFile(keyPath)
+	keyData, err := os.ReadFile(keyPath)
 	if err != nil {
-		return fmt.Errorf("failed to read SSH key: %w", err)
+		return fmt.Errorf("read SSH key: %w", err)
 	}
 
-	userPubKey, err := ssh.ParsePrivateKey(bKeys)
+	privKey, err := ssh.ParsePrivateKey(keyData)
 	if err != nil {
-		return fmt.Errorf("failed to parse user private key for server access: %w", err)
+		return fmt.Errorf("parse user private key for server access: %w", err)
 	}
-	userPubKeyString := string(ssh.MarshalAuthorizedKey(userPubKey.PublicKey()))
+	pubKeyString := string(ssh.MarshalAuthorizedKey(privKey.PublicKey()))
+
+	user := s.config.User
+	sshDir := fmt.Sprintf("/home/%s/.ssh", user)
+	authKeysFile := filepath.Join(sshDir, "authorized_keys")
 
 	commands := []string{
-		fmt.Sprintf("mkdir -p /home/%s/.ssh", s.config.User),
-		fmt.Sprintf("echo '%s' | tee -a /home/%s/.ssh/authorized_keys", userPubKeyString, s.config.User),
-		fmt.Sprintf("chown -R %s:%s /home/%s/.ssh", s.config.User, s.config.User, s.config.User),
-		fmt.Sprintf("chmod 700 /home/%s/.ssh", s.config.User),
-		fmt.Sprintf("chmod 600 /home/%s/.ssh/authorized_keys", s.config.User),
+		fmt.Sprintf("mkdir -p %s", sshDir),
+		fmt.Sprintf("echo '%s' | tee -a %s", pubKeyString, authKeysFile),
+		fmt.Sprintf("chown -R %s:%s %s", user, user, sshDir),
+		fmt.Sprintf("chmod 700 %s", sshDir),
+		fmt.Sprintf("chmod 600 %s", authKeysFile),
 	}
 
 	return s.client.RunCommandWithProgress(
