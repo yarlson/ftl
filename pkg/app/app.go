@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+
 	"github.com/yarlson/ftl/pkg/config"
 )
 

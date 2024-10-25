@@ -1,4 +1,4 @@
-package setup
+package server
 
 import (
 	"context"
@@ -30,38 +30,46 @@ func DockerLogin(ctx context.Context, dockerUsername, dockerPassword string) err
 	return nil
 }
 
-func RunSetup(ctx context.Context, server config.Server, sshKeyPath, dockerUsername, dockerPassword, newUserPassword string) error {
-	client, rootKey, err := sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, "root", sshKeyPath)
+type Server struct {
+	config *config.Server
+	client *sshPkg.Client
+}
+
+func NewServer(config *config.Server) (*Server, error) {
+	client, rootKey, err := sshPkg.FindKeyAndConnectWithUser(config.Host, config.Port, "root", config.SSHKey)
 	if err != nil {
-		return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
+		return nil, fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
 	}
-	defer client.Close()
+
+	config.RootSSHKey = string(rootKey)
+
+	return &Server{
+		config: config,
+		client: client,
+	}, nil
+}
+
+func (s *Server) RunSetup(ctx context.Context, dockerUsername, dockerPassword string) error {
 	console.Success("SSH connection to the server established.")
 
-	if err := installServerSoftware(ctx, client); err != nil {
+	if err := s.installServerSoftware(ctx); err != nil {
 		return err
 	}
 
-	if err := configureServerFirewall(ctx, client); err != nil {
+	if err := s.configureServerFirewall(ctx); err != nil {
 		return err
 	}
 
-	if err := createServerUser(ctx, client, server.User, newUserPassword); err != nil {
+	if err := s.createServerUser(ctx); err != nil {
 		return err
 	}
 
-	if err := setupServerSSHKey(ctx, client, server.User, rootKey); err != nil {
+	if err := s.setupServerSSHKey(ctx); err != nil {
 		return err
 	}
 
 	if dockerUsername != "" && dockerPassword != "" {
-		client, _, err = sshPkg.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
-		if err != nil {
-			return fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
-		}
-		defer client.Close()
-
-		if err := configureDockerHub(ctx, client, dockerUsername, dockerPassword); err != nil {
+		if err := configureDockerHub(ctx, s.client, dockerUsername, dockerPassword); err != nil {
 			return fmt.Errorf("failed to configure docker hub: %w", err)
 		}
 	}
@@ -69,7 +77,7 @@ func RunSetup(ctx context.Context, server config.Server, sshKeyPath, dockerUsern
 	return nil
 }
 
-func installServerSoftware(ctx context.Context, client *sshPkg.Client) error {
+func (s *Server) installServerSoftware(ctx context.Context) error {
 	commands := []string{
 		"apt-get update",
 		"apt-get install -y apt-transport-https ca-certificates curl wget git software-properties-common",
@@ -79,7 +87,7 @@ func installServerSoftware(ctx context.Context, client *sshPkg.Client) error {
 		"apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
 	}
 
-	return client.RunCommandWithProgress(
+	return s.client.RunCommandWithProgress(
 		ctx,
 		"Provisioning server with essential software...",
 		"Essential software and Docker installed successfully.",
@@ -87,7 +95,7 @@ func installServerSoftware(ctx context.Context, client *sshPkg.Client) error {
 	)
 }
 
-func configureServerFirewall(ctx context.Context, client *sshPkg.Client) error {
+func (s *Server) configureServerFirewall(ctx context.Context) error {
 	commands := []string{
 		"apt-get install -y ufw",
 		"ufw default deny incoming",
@@ -98,7 +106,7 @@ func configureServerFirewall(ctx context.Context, client *sshPkg.Client) error {
 		"echo 'y' | ufw enable",
 	}
 
-	return client.RunCommandWithProgress(
+	return s.client.RunCommandWithProgress(
 		ctx,
 		"Configuring server firewall...",
 		"Server firewall configured successfully.",
@@ -106,24 +114,24 @@ func configureServerFirewall(ctx context.Context, client *sshPkg.Client) error {
 	)
 }
 
-func createServerUser(ctx context.Context, client *sshPkg.Client, newUser, password string) error {
-	checkUserCmd := fmt.Sprintf("id -u %s > /dev/null 2>&1", newUser)
+func (s *Server) createServerUser(ctx context.Context) error {
+	checkUserCmd := fmt.Sprintf("id -u %s > /dev/null 2>&1", s.config.User)
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := client.RunCommand(checkCtx, checkUserCmd)
+	_, err := s.client.RunCommand(checkCtx, checkUserCmd)
 	if err == nil {
-		console.Warning(fmt.Sprintf("User %s already exists. Skipping user creation.", newUser))
+		console.Warning(fmt.Sprintf("User %s already exists. Skipping user creation.", s.config.User))
 	} else {
 		commands := []string{
-			fmt.Sprintf("adduser --gecos '' --disabled-password %s", newUser),
-			fmt.Sprintf("echo '%s:%s' | chpasswd", newUser, password),
+			fmt.Sprintf("adduser --gecos '' --disabled-password %s", s.config.User),
+			fmt.Sprintf("echo '%s:%s' | chpasswd", s.config.User, s.config.Passwd),
 		}
 
-		err := client.RunCommandWithProgress(
+		err := s.client.RunCommandWithProgress(
 			ctx,
-			fmt.Sprintf("Creating user %s...", newUser),
-			fmt.Sprintf("User %s created successfully.", newUser),
+			fmt.Sprintf("Creating user %s...", s.config.User),
+			fmt.Sprintf("User %s created successfully.", s.config.User),
 			commands,
 		)
 		if err != nil {
@@ -131,31 +139,31 @@ func createServerUser(ctx context.Context, client *sshPkg.Client, newUser, passw
 		}
 	}
 
-	addToDockerCmd := fmt.Sprintf("usermod -aG docker %s", newUser)
-	return client.RunCommandWithProgress(
+	addToDockerCmd := fmt.Sprintf("usermod -aG docker %s", s.config.User)
+	return s.client.RunCommandWithProgress(
 		ctx,
-		fmt.Sprintf("Adding user %s to Docker group...", newUser),
-		fmt.Sprintf("User %s added to Docker group successfully.", newUser),
+		fmt.Sprintf("Adding user %s to Docker group...", s.config.User),
+		fmt.Sprintf("User %s added to Docker group successfully.", s.config.User),
 		[]string{addToDockerCmd},
 	)
 }
 
-func setupServerSSHKey(ctx context.Context, client *sshPkg.Client, newUser string, userKey []byte) error {
-	userPubKey, err := ssh.ParsePrivateKey(userKey)
+func (s *Server) setupServerSSHKey(ctx context.Context) error {
+	userPubKey, err := ssh.ParsePrivateKey([]byte(s.config.SSHKey))
 	if err != nil {
 		return fmt.Errorf("failed to parse user private key for server access: %w", err)
 	}
 	userPubKeyString := string(ssh.MarshalAuthorizedKey(userPubKey.PublicKey()))
 
 	commands := []string{
-		fmt.Sprintf("mkdir -p /home/%s/.ssh", newUser),
-		fmt.Sprintf("echo '%s' | tee -a /home/%s/.ssh/authorized_keys", userPubKeyString, newUser),
-		fmt.Sprintf("chown -R %s:%s /home/%s/.ssh", newUser, newUser, newUser),
-		fmt.Sprintf("chmod 700 /home/%s/.ssh", newUser),
-		fmt.Sprintf("chmod 600 /home/%s/.ssh/authorized_keys", newUser),
+		fmt.Sprintf("mkdir -p /home/%s/.ssh", s.config.User),
+		fmt.Sprintf("echo '%s' | tee -a /home/%s/.ssh/authorized_keys", userPubKeyString, s.config.User),
+		fmt.Sprintf("chown -R %s:%s /home/%s/.ssh", s.config.User, s.config.User, s.config.User),
+		fmt.Sprintf("chmod 700 /home/%s/.ssh", s.config.User),
+		fmt.Sprintf("chmod 600 /home/%s/.ssh/authorized_keys", s.config.User),
 	}
 
-	return client.RunCommandWithProgress(
+	return s.client.RunCommandWithProgress(
 		ctx,
 		"Configuring SSH access for the new user...",
 		"SSH access configured successfully.",

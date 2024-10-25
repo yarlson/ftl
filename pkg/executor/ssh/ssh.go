@@ -236,6 +236,14 @@ var sshKeyPath string
 // FindSSHKey looks for an SSH key in the given path or in default locations
 func FindSSHKey(keyPath string) ([]byte, error) {
 	if keyPath != "" {
+		if strings.HasPrefix(keyPath, "~") {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get home directory: %w", err)
+			}
+			keyPath = filepath.Join(home, keyPath[1:])
+		}
+
 		return os.ReadFile(keyPath)
 	}
 

@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/yarlson/ftl/pkg/console"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/yarlson/ftl/pkg/console"
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/proxy"
@@ -581,7 +582,7 @@ func (d *Deployment) CopyDockerImage(ctx context.Context, remoteHost, remoteUser
 }
 
 func (d *Deployment) getRemoteDockerImageStore(ctx context.Context, remoteHost, remoteUser string) (string, error) {
-	cmd := fmt.Sprintf("echo $HOME/docker-images")
+	cmd := "echo $HOME/docker-images"
 	output, err := d.runRemoteCommand(ctx, remoteHost, remoteUser, cmd)
 	if err != nil {
 		return "", err

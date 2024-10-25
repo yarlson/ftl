@@ -21,7 +21,7 @@ type Config struct {
 	Project      Project      `yaml:"project" validate:"required"`
 	Servers      []Server     `yaml:"servers" validate:"required,dive"`
 	Services     []Service    `yaml:"services" validate:"required,dive"`
-	Dependencies []Dependency `yaml:"dependencies" validate:"required,dive"`
+	Dependencies []Dependency `yaml:"dependencies" validate:"dive"`
 	Volumes      []string     `yaml:"volumes" validate:"dive"`
 }
 
@@ -32,10 +32,12 @@ type Project struct {
 }
 
 type Server struct {
-	Host   string `yaml:"host" validate:"required,fqdn|ip"`
-	Port   int    `yaml:"port" validate:"required,min=1,max=65535"`
-	User   string `yaml:"user" validate:"required"`
-	SSHKey string `yaml:"ssh_key" validate:"required,filepath"`
+	Host       string `yaml:"host" validate:"required,fqdn|ip"`
+	Port       int    `yaml:"port" validate:"required,min=1,max=65535"`
+	User       string `yaml:"user" validate:"required"`
+	Passwd     string `yaml:"-"`
+	SSHKey     string `yaml:"ssh_key" validate:"required,filepath"`
+	RootSSHKey string `yaml:"-"`
 }
 
 type Service struct {

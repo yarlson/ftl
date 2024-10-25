@@ -100,7 +100,7 @@ FTL provides three main commands: `setup`, `build`, and `deploy`.
 The `setup` command prepares your servers for deployment:
 
 ```bash
-ftl setup
+ftl server
 ```
 
 This command:

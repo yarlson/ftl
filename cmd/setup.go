@@ -3,8 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,7 +10,7 @@ import (
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
-	"github.com/yarlson/ftl/pkg/setup"
+	"github.com/yarlson/ftl/pkg/server"
 )
 
 var setupCmd = &cobra.Command{
@@ -70,32 +68,35 @@ func runSetup(cmd *cobra.Command, args []string) {
 	fmt.Println()
 
 	if dockerUsername != "" && dockerPassword != "" {
-		if err := setup.DockerLogin(context.Background(), dockerUsername, dockerPassword); err != nil {
+		if err := server.DockerLogin(context.Background(), dockerUsername, dockerPassword); err != nil {
 			console.ErrPrintln("Failed to login to Docker Hub:", err)
 			return
 		}
 	}
 
-	for _, server := range cfg.Servers {
-		if err := setupServer(server, dockerUsername, dockerPassword, newUserPassword); err != nil {
-			console.ErrPrintln(fmt.Sprintf("Failed to setup server %s:", server.Host), err)
+	for _, s := range cfg.Servers {
+		if err := setupServer(s, dockerUsername, dockerPassword, newUserPassword); err != nil {
+			console.ErrPrintln(fmt.Sprintf("Failed to setup server %s:", s.Host), err)
 			continue
 		}
-		console.Success(fmt.Sprintf("Successfully set up server %s", server.Host))
+		console.Success(fmt.Sprintf("Successfully set up server %s", s.Host))
 	}
 
 	console.Success("Server setup completed successfully.")
 }
 
-func setupServer(server config.Server, dockerUsername, dockerPassword, newUserPassword string) error {
-	console.Info(fmt.Sprintf("Setting up server %s...", server.Host))
-
-	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
+func setupServer(serverConfig config.Server, dockerUsername, dockerPassword, newUserPassword string) error {
+	console.Info(fmt.Sprintf("Setting up server %s...", serverConfig.Host))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	return setup.RunSetup(ctx, server, sshKeyPath, dockerUsername, dockerPassword, newUserPassword)
+	s, err := server.NewServer(&serverConfig)
+	if err != nil {
+		return err
+	}
+
+	return s.RunSetup(ctx, dockerUsername, dockerPassword)
 }
 
 func imageFromDockerHub(image string) bool {
