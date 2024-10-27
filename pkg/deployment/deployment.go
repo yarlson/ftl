@@ -124,6 +124,10 @@ func (d *Deployment) startProxy(project string, cfg *config.Config) error {
 		return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 	}
 
+	if err := d.reloadNginxConfig(context.Background()); err != nil {
+		return fmt.Errorf("failed to reload nginx config: %w", err)
+	}
+
 	return nil
 }
 
@@ -766,4 +770,9 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func (d *Deployment) reloadNginxConfig(ctx context.Context) error {
+	_, err := d.runCommand(ctx, "docker", "exec", "proxy", "nginx", "-s", "reload")
+	return err
 }

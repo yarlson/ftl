@@ -37,6 +37,14 @@ func GenerateNginxConfig(cfg *config.Config) (string, error) {
 		ssl_protocols TLSv1.2 TLSv1.3;
 		ssl_prefer_server_ciphers on;
 
+        client_body_buffer_size 10M;
+        client_max_body_size 10M;
+
+        proxy_request_buffering off;
+
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
 {{- range .Services}}
 	{{- $serviceName := .Name }}
 	{{- range .Routes}}
@@ -46,7 +54,13 @@ func GenerateNginxConfig(cfg *config.Config) (string, error) {
 		{{- end}}
 			resolver 127.0.0.11 valid=1s;
 			set $service {{$serviceName}};
-			proxy_pass http://$service;
+			proxy_pass http://$service;            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
 		}
 	{{- end}}
 {{- end}}
