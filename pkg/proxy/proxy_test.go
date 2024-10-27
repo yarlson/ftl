@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,18 +15,6 @@ type ProxyTestSuite struct {
 
 func TestProxySuite(t *testing.T) {
 	suite.Run(t, new(ProxyTestSuite))
-}
-
-func stripWhitespace(s string) string {
-	lines := strings.Split(s, "\n")
-	var result []string
-	for _, line := range lines {
-		trimmed := strings.TrimRight(line, " \t")
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return strings.Join(result, "\n")
 }
 
 func (suite *ProxyTestSuite) TestGenerateNginxConfig_Success() {
