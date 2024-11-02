@@ -1,10 +1,10 @@
-# FTL: Simplified Deployment Tool
+# FTL: faster than light deployment
 
 FTL is a deployment tool that reduces complexity for projects that don't require extensive orchestration infrastructure. It provides automated deployment to cloud providers like Hetzner, DigitalOcean, Linode, and custom servers without the overhead of CI/CD pipelines or container orchestration platforms.
 
 ## Core Features
 
-- Single YAML configuration file
+- Single YAML configuration file with environment variable substitution
 - Zero-downtime deployments
 - Automatic SSL/TLS certificate management
 - Docker-based deployment with built-in health checks
@@ -15,11 +15,10 @@ FTL is a deployment tool that reduces complexity for projects that don't require
 
 1. Via Homebrew (macOS and Linux)
 
-   ```bash
-   brew tap yarlson/ftl
-   brew install ftl
-
-   ```
+```bash
+brew tap yarlson/ftl
+brew install ftl
+```
 
 2. Download from GitHub releases
 
@@ -70,12 +69,17 @@ dependencies:
       - postgres_data:/var/lib/postgresql/data
     env:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-app}
 
 volumes:
   - postgres_data
 ```
+
+Environment variables in the configuration can be:
+
+- Required: `${VAR_NAME}` - Must be set in the environment
+- Optional with default: `${VAR_NAME:-default_value}` - Uses default if not set
 
 2. Initialize server:
 
@@ -118,6 +122,7 @@ FTL manages deployments through these main components:
 - Projects requiring automated SSL and reverse proxy setup
 - Small to medium services running on single or multiple servers
 - Teams seeking to minimize deployment infrastructure
+- Applications requiring environment-specific configurations
 
 ### Not Designed For
 
@@ -168,6 +173,19 @@ dependencies:
 
 volumes: [string] # Named volumes list
 ```
+
+### Environment Variable Substitution
+
+FTL supports two forms of environment variable substitution in the configuration:
+
+1. Required variables: `${VAR_NAME}`
+
+   - Must be present in the environment
+   - Deployment fails if variable is not set
+
+2. Variables with defaults: `${VAR_NAME:-default_value}`
+   - Uses the environment variable if set
+   - Falls back to the default value if not set
 
 ### Advanced Options
 
