@@ -1,3 +1,9 @@
+<p>&nbsp;</p>
+<p align="center">
+  <img src="assets/logo.svg" alt="FTL logo">
+</p>
+<p>&nbsp;</p>
+
 # FTL: faster than light deployment
 
 FTL is a deployment tool that reduces complexity for projects that don't require extensive orchestration infrastructure. It provides automated deployment to cloud providers like Hetzner, DigitalOcean, Linode, and custom servers without the overhead of CI/CD pipelines or container orchestration platforms.
