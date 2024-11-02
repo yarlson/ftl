@@ -129,9 +129,9 @@ func (d *Deployment) startProxy(project string, cfg *config.Config) error {
 		return fmt.Errorf("failed to reload nginx config: %w", err)
 	}
 
-	//if err := d.deployCertRenewer(project, cfg); err != nil {
-	//	return fmt.Errorf("failed to deploy certrenewer service: %w", err)
-	//}
+	if err := d.deployCertRenewer(project, cfg); err != nil {
+		return fmt.Errorf("failed to deploy certrenewer service: %w", err)
+	}
 
 	return nil
 }
@@ -827,31 +827,25 @@ func (d *Deployment) reloadNginxConfig(ctx context.Context) error {
 	return err
 }
 
-//func (d *Deployment) deployCertRenewer(project string, cfg *config.Config) error {
-//	command := `zero --domain $DOMAIN --email $EMAIL -c`
-//
-//	service := &config.Service{
-//		Name:  "certrenewer",
-//		Image: "yarlson/zero-nginx",
-//		Volumes: []string{
-//			"certs:/etc/nginx/ssl",
-//			"/var/run/docker.sock:/var/run/docker.sock",
-//		},
-//		EnvVars: map[string]string{
-//			"DOMAIN": cfg.Project.Domain,
-//			"EMAIL":  cfg.Project.Email,
-//		},
-//		Entrypoint: []string{
-//			"/bin/sh",
-//			"-c",
-//		},
-//		Command:  command,
-//		Recreate: true,
-//	}
-//
-//	if err := d.deployService(project, service); err != nil {
-//		return fmt.Errorf("failed to deploy certrenewer service: %w", err)
-//	}
-//
-//	return nil
-//}
+func (d *Deployment) deployCertRenewer(project string, cfg *config.Config) error {
+	service := &config.Service{
+		Name:  "certrenewer",
+		Image: "yarlson/zero-nginx",
+		Volumes: []string{
+			"certs:/etc/nginx/ssl",
+			"/var/run/docker.sock:/var/run/docker.sock",
+		},
+		EnvVars: map[string]string{
+			"DOMAIN": cfg.Project.Domain,
+			"EMAIL":  cfg.Project.Email,
+		},
+		Entrypoint: []string{"/renew-certificates.sh"},
+		Recreate:   true,
+	}
+
+	if err := d.deployService(project, service); err != nil {
+		return fmt.Errorf("failed to deploy certrenewer service: %w", err)
+	}
+
+	return nil
+}
