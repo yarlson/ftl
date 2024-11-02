@@ -6,12 +6,14 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/deployment"
 	"github.com/yarlson/ftl/pkg/executor/ssh"
 )
 
+// deployCmd represents the deploy command
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "Deploy your application to configured servers",
@@ -32,12 +34,9 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	for _, server := range cfg.Servers {
-		if err := deployToServer(cfg.Project.Name, cfg, server); err != nil {
-			console.ErrPrintln(fmt.Sprintf("Failed to deploy to server %s:", server.Host), err)
-			continue
-		}
-		console.Success(fmt.Sprintf("Successfully deployed to server %s", server.Host))
+	if err := deployToServers(cfg); err != nil {
+		console.ErrPrintln("Deployment failed:", err)
+		return
 	}
 
 	console.Success("Deployment completed successfully.")
@@ -57,11 +56,21 @@ func parseConfig(filename string) (*config.Config, error) {
 	return cfg, nil
 }
 
+func deployToServers(cfg *config.Config) error {
+	for _, server := range cfg.Servers {
+		if err := deployToServer(cfg.Project.Name, cfg, server); err != nil {
+			return fmt.Errorf("failed to deploy to server %s: %w", server.Host, err)
+		}
+		console.Success(fmt.Sprintf("Successfully deployed to server %s", server.Host))
+	}
+
+	return nil
+}
+
 func deployToServer(project string, cfg *config.Config, server config.Server) error {
 	console.Info(fmt.Sprintf("Deploying to server %s...", server.Host))
 
-	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
-	client, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
+	client, err := connectToServer(server)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %w", err)
 	}
@@ -74,4 +83,14 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 	}
 
 	return nil
+}
+
+func connectToServer(server config.Server) (*ssh.Client, error) {
+	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
+	client, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
 }
