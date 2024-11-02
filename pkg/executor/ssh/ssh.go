@@ -98,6 +98,7 @@ func (c *Client) RunCommand(ctx context.Context, command string, args ...string)
 			quotedArgs = append(quotedArgs, fmt.Sprintf("%q", arg))
 		}
 		fullCommand += " " + strings.Join(quotedArgs, " ")
+		fullCommand = strings.Replace(fullCommand, "\\n", "\n", -1)
 	}
 
 	pr, pw := io.Pipe()

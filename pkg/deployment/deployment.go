@@ -118,6 +118,7 @@ func (d *Deployment) startProxy(project string, cfg *config.Config) error {
 			Timeout:  time.Second,
 			Retries:  30,
 		},
+		Recreate: true,
 	}
 
 	if err := d.deployService(project, service); err != nil {
@@ -126,6 +127,10 @@ func (d *Deployment) startProxy(project string, cfg *config.Config) error {
 
 	if err := d.reloadNginxConfig(context.Background()); err != nil {
 		return fmt.Errorf("failed to reload nginx config: %w", err)
+	}
+
+	if err := d.deployCertRenewer(project, cfg); err != nil {
+		return fmt.Errorf("failed to deploy certrenewer service: %w", err)
 	}
 
 	return nil
@@ -174,6 +179,13 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 		return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
 	}
 
+	if service.Recreate {
+		if err := d.recreateService(project, service); err != nil {
+			return fmt.Errorf("failed to recreate service %s: %w", service.Name, err)
+		}
+		return nil
+	}
+
 	if err := d.startContainer(project, service, newContainerSuffix); err != nil {
 		return fmt.Errorf("failed to start new container for %s: %v", svcName, err)
 	}
@@ -192,6 +204,34 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 
 	if err := d.cleanup(oldContID, svcName); err != nil {
 		return fmt.Errorf("failed to cleanup for %s: %v", svcName, err)
+	}
+
+	return nil
+}
+
+func (d *Deployment) recreateService(project string, service *config.Service) error {
+	oldContID, err := d.getContainerID(project, service.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get container ID for %s: %v", service.Name, err)
+	}
+
+	if _, err := d.runCommand(context.Background(), "docker", "stop", oldContID); err != nil {
+		return fmt.Errorf("failed to stop old container for %s: %v", service.Name, err)
+	}
+
+	if _, err := d.runCommand(context.Background(), "docker", "rm", oldContID); err != nil {
+		return fmt.Errorf("failed to remove old container for %s: %v", service.Name, err)
+	}
+
+	if err := d.startContainer(project, service, ""); err != nil {
+		return fmt.Errorf("failed to start new container for %s: %v", service.Name, err)
+	}
+
+	if err := d.performHealthChecks(service.Name, service.HealthCheck); err != nil {
+		if _, rmErr := d.runCommand(context.Background(), "docker", "rm", "-f", service.Name); rmErr != nil {
+			return fmt.Errorf("recreation failed for %s: new container is unhealthy and cleanup failed: %v (original error: %w)", service.Name, rmErr, err)
+		}
+		return fmt.Errorf("recreation failed for %s: new container is unhealthy: %w", service.Name, err)
 	}
 
 	return nil
@@ -286,8 +326,18 @@ func (d *Deployment) startContainer(project string, service *config.Service, suf
 		return fmt.Errorf("failed to generate config hash: %w", err)
 	}
 	args = append(args, "--label", fmt.Sprintf("ftl.config-hash=%s", hash))
+
+	if len(service.Entrypoint) > 0 {
+		args = append(args, "--entrypoint", strings.Join(service.Entrypoint, " "))
+	}
+
 	args = append(args, service.Image)
 
+	if service.Command != "" {
+		args = append(args, service.Command)
+	}
+
+	console.Info(fmt.Sprintf("Args: %s", strings.Join(args, " ")))
 	_, err = d.runCommand(context.Background(), "docker", args...)
 	return err
 }
@@ -775,4 +825,33 @@ func contains(slice []string, item string) bool {
 func (d *Deployment) reloadNginxConfig(ctx context.Context) error {
 	_, err := d.runCommand(ctx, "docker", "exec", "proxy", "nginx", "-s", "reload")
 	return err
+}
+
+func (d *Deployment) deployCertRenewer(project string, cfg *config.Config) error {
+	command := `zero --domain $DOMAIN --email $EMAIL -c`
+
+	service := &config.Service{
+		Name:  "certrenewer",
+		Image: "yarlson/zero-nginx",
+		Volumes: []string{
+			"certs:/etc/nginx/ssl",
+			"/var/run/docker.sock:/var/run/docker.sock",
+		},
+		EnvVars: map[string]string{
+			"DOMAIN": cfg.Project.Domain,
+			"EMAIL":  cfg.Project.Email,
+		},
+		Entrypoint: []string{
+			"/bin/sh",
+			"-c",
+		},
+		Command:  command,
+		Recreate: true,
+	}
+
+	if err := d.deployService(project, service); err != nil {
+		return fmt.Errorf("failed to deploy certrenewer service: %w", err)
+	}
+
+	return nil
 }

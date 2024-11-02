@@ -48,10 +48,14 @@ type Service struct {
 	HealthCheck *HealthCheck `yaml:"health_check"`
 	Routes      []Route      `yaml:"routes" validate:"required,dive"`
 	Volumes     []string     `yaml:"volumes" validate:"dive,volume_reference"`
+	Command     string       `yaml:"command"`
+	Entrypoint  []string     `yaml:"entrypoint"`
 
 	Forwards []string
 
 	EnvVars map[string]string
+
+	Recreate bool
 }
 
 type EnvVar struct {

@@ -1,55 +1,42 @@
-# 🚀 FTL
+# FTL: Simplified Deployment Tool
 
-FTL (Faster Than Light) is a powerful deployment tool designed specifically for developers who want to deploy their applications to popular cloud providers like **Hetzner**, **DigitalOcean**, **Linode**, or even **Raspberry Pi** and other servers but aren't sure where to start. FTL simplifies the process of setting up servers and deploying applications, making deployment easy and reliable, even for those who aren't experts in server management or advanced deployment techniques.
+FTL is a deployment tool that reduces complexity for projects that don't require extensive orchestration infrastructure. It provides automated deployment to cloud providers like Hetzner, DigitalOcean, Linode, and custom servers without the overhead of CI/CD pipelines or container orchestration platforms.
 
-## 🔑 Key Features
+## Core Features
 
-- Simple YAML configuration
-- Smooth server setup
-- Zero-downtime updates
-- Docker-based deployment
-- Built-in Nginx proxy with automatic SSL/TLS certificate provisioning via ACME
+- Single YAML configuration file
+- Zero-downtime deployments
+- Automatic SSL/TLS certificate management
+- Docker-based deployment with built-in health checks
+- Integrated Nginx reverse proxy
+- Multi-provider support (Hetzner, DigitalOcean, Linode, custom servers)
 
-## 💻 Installation
+## Installation
 
-There are several ways to install FTL:
+1. Via Homebrew (macOS and Linux)
 
-### Option 1: Install via Homebrew (macOS and Linux)
+   ```bash
+   brew tap yarlson/ftl
+   brew install ftl
 
-If you're using Homebrew, you can install FTL using the following commands:
+   ```
 
-```bash
-brew tap yarlson/ftl
-brew install ftl
-```
-
-### Option 2: Download Binary from GitHub
-
-You can download the pre-compiled binary for your operating system and architecture from the [GitHub Releases page](https://github.com/yarlson/ftl/releases). After downloading, follow these steps:
-
-1. Extract the downloaded archive.
-2. Make the binary executable.
-3. Move it to a directory in your PATH.
-
-For example, on Linux or macOS:
+2. Download from GitHub releases
 
 ```bash
-tar -xzf ftl_*.tar.gz
-chmod +x ftl
+curl -L https://github.com/yarlson/ftl/releases/latest/download/ftl_$(uname -s)_$(uname -m).tar.gz | tar xz
 sudo mv ftl /usr/local/bin/
 ```
 
-### Option 3: Install from Source
-
-To install FTL from source, you need to have [Go](https://golang.org/dl/) installed on your system. Then, you can use the following command:
+3. Or build from source
 
 ```bash
 go install github.com/yarlson/ftl@latest
 ```
 
-## ⚙️ Configuration
+## Usage
 
-Create an `ftl.yaml` file in your project root. Here's an example:
+1. Create configuration file:
 
 ```yaml
 project:
@@ -79,6 +66,7 @@ services:
 dependencies:
   - name: postgres
     image: postgres:16
+    volumes:
       - postgres_data:/var/lib/postgresql/data
     env:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -89,127 +77,128 @@ volumes:
   - postgres_data
 ```
 
-This configuration defines your project, servers, services, and dependencies.
-
-## Usage
-
-FTL provides three main commands: `setup`, `build`, and `deploy`.
-
-### Setup
-
-The `setup` command prepares your servers for deployment:
+2. Initialize server:
 
 ```bash
-ftl server
+ftl setup
 ```
 
-This command:
-
-1. Creates a new server on your chosen provider (Hetzner, DigitalOcean, Linode) or prepares your custom server (e.g., Raspberry Pi).
-2. Installs Docker and other necessary software.
-3. Sets up firewall rules to secure your server.
-4. Adds a new user and grants them the necessary permissions.
-5. Configures SSH keys for secure access.
-
-Run this command once for each new server before deploying.
-
-### Build
-
-The `build` command builds Docker images for your services:
-
-```bash
-ftl build
-```
-
-This command:
-
-1. Parses your project and service definitions.
-2. Constructs Docker images for each service defined in the configuration.
-3. Uploads the built images to your specified Docker registry.
-
-You can use the `--no-push` flag to build images without pushing them to the registry:
-
-```bash
-ftl build --no-push
-```
-
-### Deploy
-
-The `deploy` command is where the magic happens. It deploys your application to all configured servers:
+3. Deploy application:
 
 ```bash
 ftl deploy
 ```
 
-This command:
+## How It Works
 
-1. Parses the `ftl.yaml` file to understand your infrastructure.
-2. Establishes secure SSH connections to each server.
-3. Creates dedicated Docker networks for your project.
-4. Ensures the latest Docker images are available on the servers.
-5. Performs Zero-Downtime Deployment:
-   - Starts new containers with updated images.
-   - Conducts health checks to verify readiness.
-   - Switches traffic to the new containers once healthy.
-   - Gracefully stops and removes old containers.
-6. Sets up Nginx as a reverse proxy to handle SSL/TLS and route traffic.
-7. Removes any unused resources to maintain server hygiene.
+FTL manages deployments through these main components:
 
-## 🔄 How FTL Deploys Your Application
+### Server Setup (`ftl setup`)
 
-FTL uses a sophisticated deployment process to ensure your application is always available, even during updates. Here's what happens when you run `ftl deploy`:
+- Installs required packages (Docker, basic tools)
+- Configures firewall rules
+- Sets up user permissions
+- Initializes Docker networks
 
-1. FTL reads your `ftl.yaml` file to understand your infrastructure.
-2. It securely connects to each server using SSH.
-3. A dedicated Docker network is created for your project, ensuring proper isolation.
-4. The latest versions of your Docker images are pulled to ensure you're deploying the most recent code.
-5. For each service:
+### Deployment Process (`ftl deploy`)
 
-   - A new container is started with the updated image and configuration.
-   - Health checks are performed to ensure the new container is ready.
-   - Once healthy, traffic is instantly switched to the new container.
-   - The old container is gracefully stopped and removed.
+1. Connects to configured servers via SSH
+2. Pulls specified Docker images
+3. Starts new containers with health checks
+4. Configures Nginx reverse proxy
+5. Manages SSL/TLS certificates via ACME
+6. Performs zero-downtime container replacement
+7. Cleans up unused resources
 
-   This process ensures that your application remains available throughout the update.
+## Use Cases
 
-6. An Nginx proxy is automatically configured to route traffic to your services, handle SSL/TLS, and provide automatic HTTPS.
-7. Any unused resources are cleaned up to keep your server tidy.
+### Suitable For
 
-The entire process is automatic and requires no manual intervention. You can deploy updates as frequently as needed without worrying about downtime or complex deployment procedures.
+- Web applications with straightforward deployment needs
+- Projects requiring automated SSL and reverse proxy setup
+- Small to medium services running on single or multiple servers
+- Teams seeking to minimize deployment infrastructure
 
-## 🌟 Benefits of FTL's Deployment Process
+### Not Designed For
 
-- **No Downtime**: Your application remains available during updates.
-- **Automatic Rollback**: If a new version fails health checks, the old version continues to run.
-- **Consistency**: Every deployment follows the same process, reducing the chance of errors.
-- **Simplicity**: Complex deployment logic is handled for you, so you can focus on developing your application.
-- **Scalability**: Easily deploy to multiple servers or add new services as your project grows.
-- **Multi-Target Flexibility**: Choose between Hetzner, DigitalOcean, Linode, Raspberry Pi, or any other SSH-accessible server based on your needs and preferences.
+- Complex microservice architectures requiring service mesh
+- Systems needing advanced orchestration features
+- Multi-region deployment coordination
+- Specialized compliance environments
 
-## 🛠️ Development
+## Configuration Options
 
-To contribute to FTL, clone the repository and install the dependencies:
+### Basic Structure
 
-```bash
-git clone https://github.com/yarlson/ftl.git
-cd ftl
-go mod download
+```yaml
+project:
+  name: string # Project identifier (required)
+  domain: string # Primary domain (required, must be FQDN)
+  email: string # Contact email (required, valid email format)
+
+servers:
+  - host: string # Server hostname/IP (required, FQDN or IP)
+    port: int # SSH port (required, 1-65535)
+    user: string # SSH user (required)
+    ssh_key: string # Path to SSH key file (required)
+
+services:
+  - name: string # Service identifier (required)
+    image: string # Docker image (required)
+    port: int # Container port (required, 1-65535)
+    path: string # Service path (default: "./" )
+    command: string # Override container command
+    entrypoint: [string] # Override container entrypoint
+    health_check:
+      path: string # Health check endpoint
+      interval: duration # Time between checks
+      timeout: duration # Check timeout
+      retries: int # Number of retries
+    routes:
+      - path: string # Route path prefix (required)
+        strip_prefix: bool # Strip prefix from requests
+    volumes: [string] # Volume mappings (format: "volume:path")
+
+dependencies:
+  - name: string # Dependency name (required)
+    image: string # Docker image (required)
+    volumes: [string] # Volume mappings (format: "volume:path")
+    env: # Environment variables
+      KEY: value
+
+volumes: [string] # Named volumes list
 ```
 
-Run the tests:
+### Advanced Options
+
+- Custom health check configurations
+- Volume management
+- Environment variable handling
+- Service dependencies
+- Custom routing rules
+
+## Development
 
 ```bash
+# Clone repository
+git clone https://github.com/yarlson/ftl.git
+
+# Install dependencies
+cd ftl
+go mod download
+
+# Run tests
 go test ./...
 ```
 
-### Contributing
+## Contributing
 
-We welcome contributions! Whether it's reporting bugs, suggesting features, or submitting pull requests, your help is invaluable. Please ensure that your code follows the project's coding standards and that all tests pass before submitting.
+Contributions are welcome. Please ensure:
 
-## 📄 License
+- Code follows project style
+- Tests pass and new tests are added
+- Documentation is updated
+
+## License
 
 [MIT License](LICENSE)
-
----
-
-Feel free to reach out or open an issue on our [GitHub repository](https://github.com/yarlson/ftl) if you have any questions or need assistance getting started with FTL!
