@@ -13,6 +13,7 @@ import (
 	"github.com/yarlson/ftl/pkg/server"
 )
 
+// setupCmd represents the setup command
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Prepare servers for deployment",
@@ -32,50 +33,27 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	var dockerUsername, dockerPassword string
-
-	needDockerHubLogin := false
-	for _, service := range cfg.Services {
-		if imageFromDockerHub(service.Image) {
-			needDockerHubLogin = true
-			break
-		}
+	dockerCreds, err := getDockerCredentials(cfg.Services)
+	if err != nil {
+		console.ErrPrintln("Failed to get Docker credentials:", err)
+		return
 	}
 
-	if needDockerHubLogin {
-		console.Input("Enter Docker Hub username:")
-		dockerUsername, err = console.ReadLine()
-		if err != nil {
-			console.ErrPrintln("Failed to read Docker Hub username:", err)
-			return
-		}
-
-		console.Input("Enter Docker Hub password:")
-		dockerPassword, err = console.ReadPassword()
-		if err != nil {
-			console.ErrPrintln("Failed to read Docker Hub password:", err)
-			return
-		}
-		fmt.Println()
-	}
-
-	console.Input("Enter server user password:")
-	newUserPassword, err := console.ReadPassword()
+	newUserPassword, err := getUserPassword()
 	if err != nil {
 		console.ErrPrintln("Failed to read password:", err)
 		return
 	}
-	fmt.Println()
 
-	if dockerUsername != "" && dockerPassword != "" {
-		if err := server.DockerLogin(context.Background(), dockerUsername, dockerPassword); err != nil {
+	if dockerCreds.Username != "" && dockerCreds.Password != "" {
+		if err := server.DockerLogin(context.Background(), dockerCreds.Username, dockerCreds.Password); err != nil {
 			console.ErrPrintln("Failed to login to Docker Hub:", err)
 			return
 		}
 	}
 
 	for _, s := range cfg.Servers {
-		if err := setupServer(s, dockerUsername, dockerPassword, newUserPassword); err != nil {
+		if err := setupServer(s, dockerCreds, newUserPassword); err != nil {
 			console.ErrPrintln(fmt.Sprintf("Failed to setup server %s:", s.Host), err)
 			continue
 		}
@@ -85,7 +63,45 @@ func runSetup(cmd *cobra.Command, args []string) {
 	console.Success("Server setup completed successfully.")
 }
 
-func setupServer(serverConfig config.Server, dockerUsername, dockerPassword, newUserPassword string) error {
+type dockerCredentials struct {
+	Username string
+	Password string
+}
+
+func getDockerCredentials(services []config.Service) (dockerCredentials, error) {
+	var creds dockerCredentials
+
+	if !needDockerHubLogin(services) {
+		return creds, nil
+	}
+
+	console.Input("Enter Docker Hub username:")
+	username, err := console.ReadLine()
+	if err != nil {
+		return creds, fmt.Errorf("failed to read Docker Hub username: %w", err)
+	}
+
+	console.Input("Enter Docker Hub password:")
+	password, err := console.ReadPassword()
+	if err != nil {
+		return creds, fmt.Errorf("failed to read Docker Hub password: %w", err)
+	}
+	fmt.Println()
+
+	return dockerCredentials{Username: username, Password: password}, nil
+}
+
+func getUserPassword() (string, error) {
+	console.Input("Enter server user password:")
+	password, err := console.ReadPassword()
+	if err != nil {
+		return "", fmt.Errorf("failed to read password: %w", err)
+	}
+	fmt.Println()
+	return password, nil
+}
+
+func setupServer(serverConfig config.Server, dockerCreds dockerCredentials, newUserPassword string) error {
 	console.Info(fmt.Sprintf("Setting up server %s...", serverConfig.Host))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -93,16 +109,22 @@ func setupServer(serverConfig config.Server, dockerUsername, dockerPassword, new
 
 	s, err := server.NewServer(&serverConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create server: %w", err)
 	}
 
-	return s.RunSetup(ctx, dockerUsername, dockerPassword)
+	return s.RunSetup(ctx, dockerCreds.Username, dockerCreds.Password)
+}
+
+func needDockerHubLogin(services []config.Service) bool {
+	for _, service := range services {
+		if imageFromDockerHub(service.Image) {
+			return true
+		}
+	}
+	return false
 }
 
 func imageFromDockerHub(image string) bool {
 	parts := strings.SplitN(image, "/", 2)
-	if len(parts) > 1 && strings.Contains(parts[0], ".") {
-		return false
-	}
-	return true
+	return len(parts) == 1 || !strings.Contains(parts[0], ".")
 }

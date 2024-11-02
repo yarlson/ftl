@@ -129,9 +129,9 @@ func (d *Deployment) startProxy(project string, cfg *config.Config) error {
 		return fmt.Errorf("failed to reload nginx config: %w", err)
 	}
 
-	if err := d.deployCertRenewer(project, cfg); err != nil {
-		return fmt.Errorf("failed to deploy certrenewer service: %w", err)
-	}
+	//if err := d.deployCertRenewer(project, cfg); err != nil {
+	//	return fmt.Errorf("failed to deploy certrenewer service: %w", err)
+	//}
 
 	return nil
 }
