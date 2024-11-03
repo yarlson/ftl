@@ -35,52 +35,46 @@ func NewDeployment(executor Executor) *Deployment {
 }
 
 func (d *Deployment) Deploy(project string, cfg *config.Config) error {
-	if err := console.ProgressSpinner(context.Background(), "Creating network", "Network created", []func() error{
-		func() error { return d.createNetwork(project) },
-	}); err != nil {
+	spinner := console.NewSpinner("creating network")
+	if err := d.createNetwork(project); err != nil {
+		spinner.Fail("failed")
 		return fmt.Errorf("failed to create network: %w", err)
 	}
+	spinner.Success("network created")
 
-	if err := console.ProgressSpinner(context.Background(), "Creating volumes", "Volumes created", []func() error{
-		func() error {
-			for _, volume := range cfg.Volumes {
-				if err := d.createVolume(project, volume); err != nil {
-					return fmt.Errorf("failed to create volume: %w", err)
-				}
-			}
-			return nil
-		},
-	}); err != nil {
-		return fmt.Errorf("failed to create volumes: %w", err)
+	spinner = console.NewSpinner("creating volumes")
+	for _, volume := range cfg.Volumes {
+		if err := d.createVolume(project, volume); err != nil {
+			spinner.Fail("failed to create volume")
+			return fmt.Errorf("failed to create volume: %w", err)
+		}
 	}
+	spinner.Success("volumes created")
 
+	spinner = console.NewSpinner("creating dependencies")
 	for _, dependency := range cfg.Dependencies {
-		if err := console.ProgressSpinner(context.Background(),
-			fmt.Sprintf("Creating dependency %s", dependency.Name),
-			fmt.Sprintf("Dependency %s created", dependency.Name),
-			[]func() error{
-				func() error { return d.startDependency(project, &dependency) },
-			}); err != nil {
+		if err := d.startDependency(project, &dependency); err != nil {
+			spinner.Fail("failed to create dependency")
 			return fmt.Errorf("failed to create dependency %s: %w", dependency.Name, err)
 		}
 	}
+	spinner.Success("dependencies created")
 
+	spinner = console.NewSpinner("deploying services")
 	for _, service := range cfg.Services {
-		if err := console.ProgressSpinner(context.Background(),
-			fmt.Sprintf("Deploying service: %s", service.Name),
-			fmt.Sprintf("Service deployed: %s", service.Name),
-			[]func() error{
-				func() error { return d.deployService(project, &service) },
-			}); err != nil {
+		if err := d.deployService(project, &service); err != nil {
+			spinner.Fail("failed to deploy service")
 			return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 		}
 	}
+	spinner.Success("services deployed")
 
-	if err := console.ProgressSpinner(context.Background(), "Starting proxy", "Proxy started", []func() error{
-		func() error { return d.startProxy(cfg.Project.Name, cfg) },
-	}); err != nil {
+	spinner = console.NewSpinner("starting proxy")
+	if err := d.startProxy(cfg.Project.Name, cfg); err != nil {
+		spinner.Fail("failed to start proxy")
 		return fmt.Errorf("failed to start proxy: %w", err)
 	}
+	spinner.Success("proxy started")
 
 	return nil
 }

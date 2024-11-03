@@ -19,14 +19,9 @@ import (
 func DockerLogin(ctx context.Context, dockerUsername, dockerPassword string) error {
 	executor := local.NewExecutor()
 
-	if err := executor.RunCommandWithProgress(
-		ctx,
-		"Logging into Docker Hub...",
-		"Logged into Docker Hub successfully.",
-		[]string{
-			fmt.Sprintf("docker login -u %s -p %s", dockerUsername, dockerPassword),
-		},
-	); err != nil {
+	if err := executor.RunCommands(ctx, []string{
+		fmt.Sprintf("docker login -u %s -p %s", dockerUsername, dockerPassword),
+	}); err != nil {
 		return fmt.Errorf("failed to configure docker hub: %w", err)
 	}
 
@@ -90,12 +85,7 @@ func (s *Server) installServerSoftware(ctx context.Context) error {
 		"apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
 	}
 
-	return s.client.RunCommandWithProgress(
-		ctx,
-		"Provisioning server with essential software...",
-		"Essential software and Docker installed successfully.",
-		commands,
-	)
+	return s.client.RunCommands(ctx, commands)
 }
 
 func (s *Server) configureServerFirewall(ctx context.Context) error {
@@ -109,12 +99,7 @@ func (s *Server) configureServerFirewall(ctx context.Context) error {
 		"echo 'y' | ufw enable",
 	}
 
-	return s.client.RunCommandWithProgress(
-		ctx,
-		"Configuring server firewall...",
-		"Server firewall configured successfully.",
-		commands,
-	)
+	return s.client.RunCommands(ctx, commands)
 }
 
 func (s *Server) createServerUser(ctx context.Context) error {
@@ -131,24 +116,14 @@ func (s *Server) createServerUser(ctx context.Context) error {
 			fmt.Sprintf("echo '%s:%s' | chpasswd", s.config.User, s.config.Passwd),
 		}
 
-		err := s.client.RunCommandWithProgress(
-			ctx,
-			fmt.Sprintf("Creating user %s...", s.config.User),
-			fmt.Sprintf("User %s created successfully.", s.config.User),
-			commands,
-		)
+		err := s.client.RunCommands(ctx, commands)
 		if err != nil {
 			return err
 		}
 	}
 
 	addToDockerCmd := fmt.Sprintf("usermod -aG docker %s", s.config.User)
-	return s.client.RunCommandWithProgress(
-		ctx,
-		fmt.Sprintf("Adding user %s to Docker group...", s.config.User),
-		fmt.Sprintf("User %s added to Docker group successfully.", s.config.User),
-		[]string{addToDockerCmd},
-	)
+	return s.client.RunCommands(ctx, []string{addToDockerCmd})
 }
 
 func (s *Server) setupServerSSHKey(ctx context.Context) error {
@@ -184,12 +159,7 @@ func (s *Server) setupServerSSHKey(ctx context.Context) error {
 		fmt.Sprintf("chmod 600 %s", authKeysFile),
 	}
 
-	return s.client.RunCommandWithProgress(
-		ctx,
-		"Configuring SSH access for the new user...",
-		"SSH access configured successfully.",
-		commands,
-	)
+	return s.client.RunCommands(ctx, commands)
 }
 
 func (s *Server) configureDockerHub(ctx context.Context, dockerUsername, dockerPassword string) error {
@@ -197,10 +167,5 @@ func (s *Server) configureDockerHub(ctx context.Context, dockerUsername, dockerP
 		fmt.Sprintf("docker login -u %s -p %s", dockerUsername, dockerPassword),
 	}
 
-	return s.client.RunCommandWithProgress(
-		ctx,
-		"Logging into Docker Hub...",
-		"Logged into Docker Hub successfully.",
-		commands,
-	)
+	return s.client.RunCommands(ctx, commands)
 }

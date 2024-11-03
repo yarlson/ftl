@@ -13,8 +13,6 @@ import (
 
 	"github.com/bramvdbogaerde/go-scp"
 	"golang.org/x/crypto/ssh"
-
-	"github.com/yarlson/ftl/pkg/console"
 )
 
 type Client struct {
@@ -164,7 +162,7 @@ func (c *Client) CopyFile(ctx context.Context, src, dst string) error {
 	return client.CopyFile(ctx, file, dst, "0644")
 }
 
-func (c *Client) RunCommandWithProgress(ctx context.Context, initialMsg, completeMsg string, commands []string) error {
+func (c *Client) RunCommands(ctx context.Context, commands []string) error {
 	operations := make([]func() error, len(commands))
 	for i, command := range commands {
 		cmd := command // Create a new variable to avoid closure issues
@@ -173,7 +171,7 @@ func (c *Client) RunCommandWithProgress(ctx context.Context, initialMsg, complet
 		}
 	}
 
-	return console.ProgressSpinner(ctx, initialMsg, completeMsg, operations)
+	return nil
 }
 
 func (c *Client) runSingleCommand(ctx context.Context, command string) error {

@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/yarlson/ftl/pkg/console"
 
 	"github.com/yarlson/ftl/pkg/build"
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/executor/local"
 )
 
@@ -49,12 +49,6 @@ func runBuild(cmd *cobra.Command, args []string) {
 		console.ErrPrintln("Build process failed:", err)
 		return
 	}
-
-	message := "Build process completed successfully."
-	if skipPush {
-		message += " Images were not pushed due to --skip-push flag."
-	}
-	console.Success(message)
 }
 
 func buildAndPushServices(ctx context.Context, services []config.Service, builder *build.Build, skipPush bool) error {
@@ -67,17 +61,21 @@ func buildAndPushServices(ctx context.Context, services []config.Service, builde
 }
 
 func buildAndPushService(ctx context.Context, service config.Service, builder *build.Build, skipPush bool) error {
+	spinner := console.NewSpinner(fmt.Sprintf("building service %s", service.Name))
+
 	if err := builder.Build(ctx, service.Image, service.Path); err != nil {
+		spinner.Fail("build failed")
 		return fmt.Errorf("failed to build image: %w", err)
 	}
 
-	if skipPush {
-		return nil
+	if !skipPush {
+		spinner.UpdateText(fmt.Sprintf("pushing service %s", service.Name))
+		if err := builder.Push(ctx, service.Image); err != nil {
+			spinner.Fail("push failed")
+			return fmt.Errorf("failed to push image: %w", err)
+		}
 	}
 
-	if err := builder.Push(ctx, service.Image); err != nil {
-		return fmt.Errorf("failed to push image: %w", err)
-	}
-
+	spinner.Success(fmt.Sprintf("service %s built successfully", service.Name))
 	return nil
 }

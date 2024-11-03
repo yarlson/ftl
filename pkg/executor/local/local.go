@@ -7,8 +7,6 @@ import (
 	"io"
 	"os/exec"
 	"strings"
-
-	"github.com/yarlson/ftl/pkg/console"
 )
 
 type Executor struct{}
@@ -26,7 +24,7 @@ func (e *Executor) RunCommand(ctx context.Context, command string, args ...strin
 	return bytes.NewReader(output), nil
 }
 
-func (e *Executor) RunCommandWithProgress(ctx context.Context, initialMsg, completeMsg string, commands []string) error {
+func (e *Executor) RunCommands(ctx context.Context, commands []string) error {
 	operations := make([]func() error, len(commands))
 	for i, cmdString := range commands {
 		command, args := splitCommandAndArgs(cmdString)
@@ -35,7 +33,7 @@ func (e *Executor) RunCommandWithProgress(ctx context.Context, initialMsg, compl
 			return err
 		}
 	}
-	return console.ProgressSpinner(ctx, initialMsg, completeMsg, operations)
+	return nil
 }
 
 func splitCommandAndArgs(cmdString string) (string, []string) {
