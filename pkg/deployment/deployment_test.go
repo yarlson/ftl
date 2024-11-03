@@ -241,7 +241,10 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 	}()
 
 	suite.Run("Successful deployment", func() {
-		err = suite.updater.Deploy(project, cfg)
+		iterator := suite.updater.Deploy(project, cfg)
+		for _, err := range iterator {
+			assert.NoError(suite.T(), err)
+		}
 		time.Sleep(5 * time.Second)
 
 		requestStats := struct {
@@ -278,8 +281,10 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 
 		cfg.Services[0].Image = "nginx:1.20"
 
-		err = suite.updater.Deploy(project, cfg)
-		assert.NoError(suite.T(), err)
+		iterator = suite.updater.Deploy(project, cfg)
+		for _, err := range iterator {
+			assert.NoError(suite.T(), err)
+		}
 
 		fmt.Printf("Total requests: %d\n", requestStats.totalRequests)
 		fmt.Printf("Failed requests: %d\n", requestStats.failedRequests)

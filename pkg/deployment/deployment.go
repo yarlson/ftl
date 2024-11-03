@@ -12,7 +12,6 @@ import (
 	"unicode"
 
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/proxy"
 )
 
@@ -25,6 +24,13 @@ type Executor interface {
 	CopyFile(ctx context.Context, from, to string) error
 }
 
+type DeploymentEvent struct {
+	Type    string
+	Message string
+}
+
+type DeploymentIterator func(yield func(*DeploymentEvent, error) bool)
+
 type Deployment struct {
 	executor Executor
 }
@@ -33,57 +39,97 @@ func NewDeployment(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 
-func (d *Deployment) Deploy(project string, cfg *config.Config) error {
-	spinnerNetwork := console.NewSpinner("creating network")
-	if err := d.createNetwork(project); err != nil {
-		spinnerNetwork.Fail("failed")
-		return fmt.Errorf("failed to create network: %w", err)
-	}
-	spinnerNetwork.Success("network created")
+func (d *Deployment) Deploy(project string, cfg *config.Config) DeploymentIterator {
+	return func(yield func(*DeploymentEvent, error) bool) {
+		// Network creation
+		if !yield(&DeploymentEvent{Type: "network", Message: "Creating network"}, nil) {
+			return
+		}
+		if err := d.createNetwork(project); err != nil {
+			yield(nil, fmt.Errorf("failed to create network: %w", err))
+			return
+		}
+		if !yield(&DeploymentEvent{Type: "network", Message: "Network created"}, nil) {
+			return
+		}
 
-	time.Sleep(10 * time.Millisecond)
+		// Volume creation
+		if !yield(&DeploymentEvent{Type: "volume", Message: "Creating volumes"}, nil) {
+			return
+		}
+		for _, volume := range cfg.Volumes {
+			if err := d.createVolume(project, volume); err != nil {
+				yield(nil, fmt.Errorf("failed to create volume: %w", err))
+				return
+			}
+		}
+		if !yield(&DeploymentEvent{Type: "volume", Message: "Volumes created"}, nil) {
+			return
+		}
 
-	spinnerVolume := console.NewSpinner("creating volumes")
-	for _, volume := range cfg.Volumes {
-		if err := d.createVolume(project, volume); err != nil {
-			spinnerVolume.Fail("failed to create volume")
-			return fmt.Errorf("failed to create volume: %w", err)
+		// Dependencies
+		if !yield(&DeploymentEvent{Type: "dependency", Message: "Creating dependencies"}, nil) {
+			return
+		}
+		for _, dependency := range cfg.Dependencies {
+			if err := d.startDependency(project, &dependency); err != nil {
+				yield(nil, fmt.Errorf("failed to create dependency %s: %w", dependency.Name, err))
+				return
+			}
+			if !yield(&DeploymentEvent{Type: "dependency", Message: fmt.Sprintf("Dependency %s created", dependency.Name)}, nil) {
+				return
+			}
+		}
+		if !yield(&DeploymentEvent{Type: "dependency", Message: "Dependencies created"}, nil) {
+			return
+		}
+
+		// Services
+		if !yield(&DeploymentEvent{Type: "service", Message: "Deploying services"}, nil) {
+			return
+		}
+		for _, service := range cfg.Services {
+			if err := d.deployService(project, &service); err != nil {
+				yield(nil, fmt.Errorf("failed to deploy service %s: %w", service.Name, err))
+				return
+			}
+			if !yield(&DeploymentEvent{Type: "service", Message: fmt.Sprintf("Service %s deployed", service.Name)}, nil) {
+				return
+			}
+		}
+		if !yield(&DeploymentEvent{Type: "service", Message: "Services deployed"}, nil) {
+			return
+		}
+
+		// Proxy
+		if !yield(&DeploymentEvent{Type: "proxy", Message: "Starting proxy"}, nil) {
+			return
+		}
+		if err := d.startProxy(cfg.Project.Name, cfg); err != nil {
+			yield(nil, fmt.Errorf("failed to start proxy: %w", err))
+			return
+		}
+		if !yield(&DeploymentEvent{Type: "proxy", Message: "Proxy started"}, nil) {
+			return
+		}
+
+		// Cert Renewer
+		if !yield(&DeploymentEvent{Type: "certrenewer", Message: "Deploying cert renewer"}, nil) {
+			return
+		}
+		if err := d.deployCertRenewer(project, cfg); err != nil {
+			yield(nil, fmt.Errorf("failed to deploy cert renewer: %w", err))
+			return
+		}
+		if !yield(&DeploymentEvent{Type: "certrenewer", Message: "Cert renewer deployed"}, nil) {
+			return
+		}
+
+		// Deployment complete
+		if !yield(&DeploymentEvent{Type: "complete", Message: "Deployment completed successfully"}, nil) {
+			return
 		}
 	}
-	spinnerVolume.Success("volumes created")
-
-	time.Sleep(10 * time.Millisecond)
-
-	spinnerDeps := console.NewSpinner("creating dependencies")
-	for _, dependency := range cfg.Dependencies {
-		if err := d.startDependency(project, &dependency); err != nil {
-			spinnerDeps.Fail("failed to create dependency")
-			return fmt.Errorf("failed to create dependency %s: %w", dependency.Name, err)
-		}
-	}
-	spinnerDeps.Success("dependencies created")
-
-	time.Sleep(10 * time.Millisecond)
-
-	spinnerSrv := console.NewSpinner("deploying services")
-	for _, service := range cfg.Services {
-		if err := d.deployService(project, &service); err != nil {
-			spinnerSrv.Fail("failed to deploy service")
-			return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
-		}
-	}
-	spinnerSrv.Success("services deployed")
-
-	time.Sleep(10 * time.Millisecond)
-
-	spinnerProxy := console.NewSpinner("starting proxy")
-	if err := d.startProxy(cfg.Project.Name, cfg); err != nil {
-		spinnerProxy.Fail("failed to start proxy")
-		return fmt.Errorf("failed to start proxy: %w", err)
-	}
-	spinnerProxy.Success("proxy started")
-
-	return nil
 }
 
 func (d *Deployment) startProxy(project string, cfg *config.Config) error {

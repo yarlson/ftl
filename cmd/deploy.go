@@ -78,8 +78,30 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 
 	deploy := deployment.NewDeployment(client)
 
-	if err := deploy.Deploy(project, cfg); err != nil {
-		return fmt.Errorf("deployment failed: %w", err)
+	for event, err := range deploy.Deploy(project, cfg) {
+		if err != nil {
+			console.ErrPrintln(fmt.Sprintf("Deployment error: %v", err))
+			return err
+		}
+
+		switch event.Type {
+		case "network":
+			console.Info(event.Message)
+		case "volume":
+			console.Info(event.Message)
+		case "dependency":
+			console.Info(event.Message)
+		case "service":
+			console.Info(event.Message)
+		case "proxy":
+			console.Info(event.Message)
+		case "certrenewer":
+			console.Info(event.Message)
+		case "complete":
+			console.Success(event.Message)
+		default:
+			console.Info(event.Message)
+		}
 	}
 
 	return nil
