@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -292,4 +293,80 @@ func getSSHDir() (string, error) {
 	}
 
 	return filepath.Join(home, ".ssh"), nil
+}
+
+func (c *Client) CreateTunnel(ctx context.Context, localPort, remotePort int) error {
+	if err := c.ensureConnected(); err != nil {
+		return fmt.Errorf("failed to ensure SSH connection: %w", err)
+	}
+
+	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", localPort))
+	if err != nil {
+		return fmt.Errorf("failed to start local listener: %w", err)
+	}
+	defer listener.Close()
+
+	errChan := make(chan error, 1)
+
+	go func() {
+		for {
+			local, err := listener.Accept()
+			if err != nil {
+				if !strings.Contains(err.Error(), "use of closed network connection") {
+					errChan <- fmt.Errorf("failed to accept connection: %w", err)
+				}
+				return
+			}
+
+			go func(localConn net.Conn) {
+				defer localConn.Close()
+
+				session, err := c.sshClient.NewSession()
+				if err != nil {
+					fmt.Printf("Failed to create session: %v\n", err)
+					return
+				}
+				defer session.Close()
+
+				remoteConn, err := c.sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
+				if err != nil {
+					fmt.Printf("Failed to connect to remote port: %v\n", err)
+					return
+				}
+				defer remoteConn.Close()
+
+				copyErrChan := make(chan error, 2)
+				doneChan := make(chan bool, 2)
+
+				go func() {
+					_, err := io.Copy(localConn, remoteConn)
+					copyErrChan <- err
+					doneChan <- true
+				}()
+
+				go func() {
+					_, err := io.Copy(remoteConn, localConn)
+					copyErrChan <- err
+					doneChan <- true
+				}()
+
+				select {
+				case err := <-copyErrChan:
+					if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+						fmt.Printf("Copy operation failed: %v\n", err)
+					}
+					<-doneChan
+				case <-ctx.Done():
+					return
+				}
+			}(local)
+		}
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
