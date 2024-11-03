@@ -11,9 +11,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/yarlson/ftl/pkg/console"
-
 	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/proxy"
 )
 
@@ -35,46 +34,54 @@ func NewDeployment(executor Executor) *Deployment {
 }
 
 func (d *Deployment) Deploy(project string, cfg *config.Config) error {
-	spinner := console.NewSpinner("creating network")
+	spinnerNetwork := console.NewSpinner("creating network")
 	if err := d.createNetwork(project); err != nil {
-		spinner.Fail("failed")
+		spinnerNetwork.Fail("failed")
 		return fmt.Errorf("failed to create network: %w", err)
 	}
-	spinner.Success("network created")
+	spinnerNetwork.Success("network created")
 
-	spinner = console.NewSpinner("creating volumes")
+	time.Sleep(10 * time.Millisecond)
+
+	spinnerVolume := console.NewSpinner("creating volumes")
 	for _, volume := range cfg.Volumes {
 		if err := d.createVolume(project, volume); err != nil {
-			spinner.Fail("failed to create volume")
+			spinnerVolume.Fail("failed to create volume")
 			return fmt.Errorf("failed to create volume: %w", err)
 		}
 	}
-	spinner.Success("volumes created")
+	spinnerVolume.Success("volumes created")
 
-	spinner = console.NewSpinner("creating dependencies")
+	time.Sleep(10 * time.Millisecond)
+
+	spinnerDeps := console.NewSpinner("creating dependencies")
 	for _, dependency := range cfg.Dependencies {
 		if err := d.startDependency(project, &dependency); err != nil {
-			spinner.Fail("failed to create dependency")
+			spinnerDeps.Fail("failed to create dependency")
 			return fmt.Errorf("failed to create dependency %s: %w", dependency.Name, err)
 		}
 	}
-	spinner.Success("dependencies created")
+	spinnerDeps.Success("dependencies created")
 
-	spinner = console.NewSpinner("deploying services")
+	time.Sleep(10 * time.Millisecond)
+
+	spinnerSrv := console.NewSpinner("deploying services")
 	for _, service := range cfg.Services {
 		if err := d.deployService(project, &service); err != nil {
-			spinner.Fail("failed to deploy service")
+			spinnerSrv.Fail("failed to deploy service")
 			return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 		}
 	}
-	spinner.Success("services deployed")
+	spinnerSrv.Success("services deployed")
 
-	spinner = console.NewSpinner("starting proxy")
+	time.Sleep(10 * time.Millisecond)
+
+	spinnerProxy := console.NewSpinner("starting proxy")
 	if err := d.startProxy(cfg.Project.Name, cfg); err != nil {
-		spinner.Fail("failed to start proxy")
+		spinnerProxy.Fail("failed to start proxy")
 		return fmt.Errorf("failed to start proxy: %w", err)
 	}
-	spinner.Success("proxy started")
+	spinnerProxy.Success("proxy started")
 
 	return nil
 }
@@ -331,7 +338,6 @@ func (d *Deployment) startContainer(project string, service *config.Service, suf
 		args = append(args, service.Command)
 	}
 
-	console.Info(fmt.Sprintf("Args: %s", strings.Join(args, " ")))
 	_, err = d.runCommand(context.Background(), "docker", args...)
 	return err
 }

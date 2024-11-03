@@ -4,18 +4,49 @@ import (
 	"bufio"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pterm/pterm"
 	"golang.org/x/term"
 )
 
 var (
-	Info       = pterm.Info.Println
-	Success    = pterm.Success.Println
-	Warning    = pterm.Warning.Println
-	ErrPrintln = pterm.Error.Println
-	ErrPrintf  = pterm.Error.Printf
-	Input      = pterm.FgYellow.Print
+	Info = (&pterm.PrefixPrinter{
+		Prefix: pterm.Prefix{
+			Style: &pterm.ThemeDefault.InfoMessageStyle,
+			Text:  " ",
+		},
+	}).Println
+
+	Success = (&pterm.PrefixPrinter{
+		Prefix: pterm.Prefix{
+			Style: &pterm.ThemeDefault.SuccessMessageStyle,
+			Text:  "√",
+		},
+	}).Println
+
+	Warning = (&pterm.PrefixPrinter{
+		Prefix: pterm.Prefix{
+			Style: &pterm.ThemeDefault.WarningMessageStyle,
+			Text:  "!",
+		},
+	}).Println
+
+	ErrPrintln = (&pterm.PrefixPrinter{
+		Prefix: pterm.Prefix{
+			Style: &pterm.ThemeDefault.ErrorMessageStyle,
+			Text:  "✘",
+		},
+	}).Println
+
+	ErrPrintf = (&pterm.PrefixPrinter{
+		Prefix: pterm.Prefix{
+			Style: &pterm.ThemeDefault.ErrorMessageStyle,
+			Text:  "✘",
+		},
+	}).Printf
+
+	Input = pterm.FgYellow.Print
 )
 
 func ReadLine() (string, error) {
@@ -36,40 +67,40 @@ func ReadPassword() (string, error) {
 }
 
 func NewSpinner(initialText string) *pterm.SpinnerPrinter {
-	spinner, _ := pterm.
-		DefaultSpinner.
-		WithSequence(" ⠋ ", " ⠙ ", " ⠹ ", " ⠸ ", " ⠼ ", " ⠴ ", " ⠦ ", " ⠧ ", " ⠇ ", " ⠏ ").
-		WithMessageStyle(pterm.NewStyle(pterm.FgYellow)).
-		WithShowTimer(false).
-		Start(initialText)
-
-	spinner.SuccessPrinter = &pterm.PrefixPrinter{
-		Prefix: pterm.Prefix{
-			Style: &pterm.ThemeDefault.SuccessMessageStyle,
-			Text:  "√",
+	spinner := pterm.SpinnerPrinter{
+		Sequence:            []string{" ⠋ ", " ⠙ ", " ⠹ ", " ⠸ ", " ⠼ ", " ⠴ ", " ⠦ ", " ⠧ ", " ⠇ ", " ⠏ "},
+		Style:               &pterm.ThemeDefault.SpinnerStyle,
+		Delay:               time.Millisecond * 200,
+		ShowTimer:           false,
+		TimerRoundingFactor: time.Second,
+		TimerStyle:          &pterm.ThemeDefault.TimerStyle,
+		MessageStyle:        pterm.NewStyle(pterm.FgYellow),
+		InfoPrinter: &pterm.PrefixPrinter{
+			Prefix: pterm.Prefix{
+				Style: &pterm.ThemeDefault.InfoMessageStyle,
+				Text:  " ",
+			},
+		},
+		SuccessPrinter: &pterm.PrefixPrinter{
+			Prefix: pterm.Prefix{
+				Style: &pterm.ThemeDefault.SuccessMessageStyle,
+				Text:  "√",
+			},
+		},
+		FailPrinter: &pterm.PrefixPrinter{
+			Prefix: pterm.Prefix{
+				Style: &pterm.ThemeDefault.ErrorMessageStyle,
+				Text:  "✘",
+			},
+		},
+		WarningPrinter: &pterm.PrefixPrinter{
+			Prefix: pterm.Prefix{
+				Style: &pterm.ThemeDefault.WarningMessageStyle,
+				Text:  "!",
+			},
 		},
 	}
 
-	spinner.InfoPrinter = &pterm.PrefixPrinter{
-		Prefix: pterm.Prefix{
-			Style: &pterm.ThemeDefault.InfoMessageStyle,
-			Text:  "i",
-		},
-	}
-
-	spinner.WarningPrinter = &pterm.PrefixPrinter{
-		Prefix: pterm.Prefix{
-			Style: &pterm.ThemeDefault.WarningMessageStyle,
-			Text:  "!",
-		},
-	}
-
-	spinner.FailPrinter = &pterm.PrefixPrinter{
-		Prefix: pterm.Prefix{
-			Style: &pterm.ThemeDefault.ErrorMessageStyle,
-			Text:  "✘",
-		},
-	}
-
-	return spinner
+	sp, _ := spinner.Start(initialText)
+	return sp
 }
