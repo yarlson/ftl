@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/yarlson/ftl/pkg/config"
@@ -38,8 +39,6 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		console.ErrPrintln("Deployment failed:", err)
 		return
 	}
-
-	console.Success("Deployment completed successfully.")
 }
 
 func parseConfig(filename string) (*config.Config, error) {
@@ -78,30 +77,54 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 
 	deploy := deployment.NewDeployment(client)
 
+	var spinner *pterm.SpinnerPrinter
+
 	for event, err := range deploy.Deploy(project, cfg) {
 		if err != nil {
-			console.ErrPrintln(fmt.Sprintf("Deployment error: %v", err))
+			if spinner != nil {
+				spinner.Fail(fmt.Sprintf("Deployment error: %v", err))
+			} else {
+				console.ErrPrintln(fmt.Sprintf("Deployment error: %v", err))
+			}
 			return err
 		}
 
 		switch event.Type {
-		case "network":
-			console.Info(event.Message)
-		case "volume":
-			console.Info(event.Message)
-		case "dependency":
-			console.Info(event.Message)
-		case "service":
-			console.Info(event.Message)
-		case "proxy":
-			console.Info(event.Message)
-		case "certrenewer":
-			console.Info(event.Message)
-		case "complete":
-			console.Success(event.Message)
+		case deployment.EventTypeStart:
+			if spinner != nil {
+				spinner.Success()
+			}
+			spinner = console.NewSpinner(event.Message)
+		case deployment.EventTypeProgress:
+			if spinner != nil {
+				spinner.UpdateText(event.Message)
+			} else {
+				console.Info(event.Message)
+			}
+		case deployment.EventTypeFinish:
+			if spinner != nil {
+				spinner.Success(event.Message)
+				spinner = nil
+			} else {
+				console.Success(event.Message)
+			}
+		case deployment.EventTypeComplete:
+			if spinner != nil {
+				spinner.Success(event.Message)
+			} else {
+				console.Success(event.Message)
+			}
 		default:
-			console.Info(event.Message)
+			if spinner != nil {
+				spinner.UpdateText(event.Message)
+			} else {
+				console.Info(event.Message)
+			}
 		}
+	}
+
+	if spinner != nil {
+		_ = spinner.Stop()
 	}
 
 	return nil
