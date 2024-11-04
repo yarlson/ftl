@@ -233,7 +233,17 @@ func extractTar(ctx context.Context, tarPath, destPath string) error {
 			return fmt.Errorf("tar reading error: %w", err)
 		}
 
+		// Ensure the header name does not contain ".."
+		if strings.Contains(header.Name, "..") {
+			return fmt.Errorf("invalid file path in tar archive: %s", header.Name)
+		}
+
+		// Clean the target path and ensure it is within destPath
 		target := filepath.Join(destPath, header.Name)
+		target = filepath.Clean(target)
+		if !strings.HasPrefix(target, filepath.Clean(destPath)+string(os.PathSeparator)) {
+			return fmt.Errorf("invalid file path in tar archive: %s", header.Name)
+		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
