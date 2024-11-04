@@ -31,6 +31,7 @@ const (
 	EventTypeProgress EventType = "progress"
 	EventTypeFinish   EventType = "finish"
 	EventTypeComplete EventType = "complete"
+	EventTypeError    EventType = "error"
 )
 
 type Event struct {
@@ -48,86 +49,112 @@ func NewDeployment(executor Executor) *Deployment {
 	return &Deployment{executor: executor}
 }
 
-func (d *Deployment) Deploy(project string, cfg *config.Config) Iterator {
-	return func(yield func(*Event, error) bool) {
-		if !yield(&Event{Type: EventTypeStart, Message: "Creating network"}, nil) {
-			return
-		}
-		if err := d.createNetwork(project); err != nil {
-			yield(nil, fmt.Errorf("failed to create network: %w", err))
-			return
-		}
-		if !yield(&Event{Type: EventTypeFinish, Message: "Network created"}, nil) {
-			return
+func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Config) <-chan Event {
+	events := make(chan Event)
+
+	go func() {
+		defer close(events)
+
+		steps := []struct {
+			name   string
+			action func() error
+		}{
+			{
+				name: "Creating network",
+				action: func() error {
+					return d.createNetwork(project)
+				},
+			},
+			{
+				name: "Creating volumes",
+				action: func() error {
+					return d.createVolumes(project, cfg.Volumes)
+				},
+			},
+			{
+				name: "Creating dependencies",
+				action: func() error {
+					return d.createDependencies(ctx, project, cfg.Dependencies, events)
+				},
+			},
+			{
+				name: "Deploying services",
+				action: func() error {
+					return d.deployServices(ctx, project, cfg.Services, events)
+				},
+			},
+			{
+				name: "Starting proxy",
+				action: func() error {
+					return d.startProxy(project, cfg)
+				},
+			},
+			{
+				name: "Deploying cert renewer",
+				action: func() error {
+					return d.deployCertRenewer(project, cfg)
+				},
+			},
 		}
 
-		if !yield(&Event{Type: EventTypeStart, Message: "Creating volumes"}, nil) {
-			return
-		}
-		for _, volume := range cfg.Volumes {
-			if err := d.createVolume(project, volume); err != nil {
-				yield(nil, fmt.Errorf("failed to create volume: %w", err))
+		for _, step := range steps {
+			select {
+			case <-ctx.Done():
+				events <- Event{Type: EventTypeError, Message: "Deployment canceled"}
 				return
+			default:
+				events <- Event{Type: EventTypeStart, Message: step.name}
+				if err := step.action(); err != nil {
+					events <- Event{Type: EventTypeError, Message: fmt.Sprintf("%s failed: %v", step.name, err)}
+					return
+				}
+				events <- Event{Type: EventTypeFinish, Message: fmt.Sprintf("%s completed", step.name)}
 			}
-		}
-		if !yield(&Event{Type: EventTypeFinish, Message: "Volumes created"}, nil) {
-			return
 		}
 
-		if !yield(&Event{Type: EventTypeStart, Message: "Creating dependencies"}, nil) {
-			return
-		}
-		for _, dependency := range cfg.Dependencies {
-			if err := d.startDependency(project, &dependency); err != nil {
-				yield(nil, fmt.Errorf("failed to create dependency %s: %w", dependency.Name, err))
-				return
-			}
-			if !yield(&Event{Type: EventTypeProgress, Message: fmt.Sprintf("Dependency %s created", dependency.Name)}, nil) {
-				return
-			}
-		}
-		if !yield(&Event{Type: EventTypeFinish, Message: "Dependencies created"}, nil) {
-			return
-		}
+		events <- Event{Type: EventTypeComplete, Message: "Deployment complete"}
+	}()
 
-		if !yield(&Event{Type: EventTypeStart, Message: "Deploying services"}, nil) {
-			return
-		}
-		for _, service := range cfg.Services {
-			if err := d.deployService(project, &service); err != nil {
-				yield(nil, fmt.Errorf("failed to deploy service %s: %w", service.Name, err))
-				return
-			}
-			if !yield(&Event{Type: EventTypeProgress, Message: fmt.Sprintf("Service %s deployed", service.Name)}, nil) {
-				return
-			}
-		}
-		if !yield(&Event{Type: EventTypeFinish, Message: "Services deployed"}, nil) {
-			return
-		}
+	return events
+}
 
-		if !yield(&Event{Type: EventTypeStart, Message: "Starting proxy"}, nil) {
-			return
-		}
-		if err := d.startProxy(cfg.Project.Name, cfg); err != nil {
-			yield(nil, fmt.Errorf("failed to start proxy: %w", err))
-			return
-		}
-		if !yield(&Event{Type: EventTypeFinish, Message: "Proxy started"}, nil) {
-			return
-		}
-
-		if !yield(&Event{Type: EventTypeStart, Message: "Deploying cert renewer"}, nil) {
-			return
-		}
-		if err := d.deployCertRenewer(project, cfg); err != nil {
-			yield(nil, fmt.Errorf("failed to deploy cert renewer: %w", err))
-			return
-		}
-		if !yield(&Event{Type: EventTypeFinish, Message: "Cert renewer deployed"}, nil) {
-			return
+func (d *Deployment) createVolumes(project string, volumes []string) error {
+	for _, volume := range volumes {
+		if err := d.createVolume(project, volume); err != nil {
+			return fmt.Errorf("failed to create volume %s: %w", volume, err)
 		}
 	}
+	return nil
+}
+
+func (d *Deployment) createDependencies(ctx context.Context, project string, dependencies []config.Dependency, events chan<- Event) error {
+	for _, dependency := range dependencies {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if err := d.startDependency(project, &dependency); err != nil {
+				return fmt.Errorf("failed to create dependency %s: %w", dependency.Name, err)
+			}
+			events <- Event{Type: EventTypeProgress, Message: fmt.Sprintf("Dependency %s created", dependency.Name)}
+		}
+	}
+	return nil
+}
+
+func (d *Deployment) deployServices(ctx context.Context, project string, services []config.Service, events chan<- Event) error {
+	for _, service := range services {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if err := d.deployService(project, &service); err != nil {
+				return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
+			}
+			events <- Event{Type: EventTypeProgress, Message: fmt.Sprintf("Service %s deployed", service.Name)}
+		}
+	}
+	return nil
 }
 
 func (d *Deployment) startProxy(project string, cfg *config.Config) error {

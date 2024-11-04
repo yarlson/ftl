@@ -188,9 +188,11 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		},
 	}
 
+	// Prepare the project folder
 	projectPath, err := suite.updater.prepareProjectFolder(project)
 	assert.NoError(suite.T(), err)
 
+	// Generate certificates
 	proxyCertPath := filepath.Join(projectPath, "localhost.crt")
 	proxyKeyPath := filepath.Join(projectPath, "localhost.key")
 	mkcertCmds := [][]string{
@@ -199,67 +201,45 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 	}
 
 	for _, cmd := range mkcertCmds {
-		if output, err := suite.updater.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
-			assert.NoError(suite.T(), err)
-			suite.T().Log(output)
-			return
-		}
+		output, err := suite.updater.runCommand(context.Background(), cmd[0], cmd[1:]...)
+		assert.NoError(suite.T(), err, "Command output: %s", output)
 	}
 
-	suite.removeContainer("proxy")
-	suite.removeContainer("web")
-	suite.removeContainer("postgres")
-	suite.removeContainer("mysql")
-	suite.removeContainer("mongodb")
-	suite.removeContainer("redis")
-	suite.removeContainer("rabbitmq")
-	suite.removeContainer("elasticsearch")
-	suite.removeContainer("certrenewer")
-	suite.removeVolume("test-project-postgres_data")
-	suite.removeVolume("test-project-mysql_data")
-	suite.removeVolume("test-project-mongodb_data")
-	suite.removeVolume("test-project-redis_data")
-	suite.removeVolume("test-project-rabbitmq_data")
-	suite.removeVolume("test-project-elasticsearch_data")
-
-	defer func() {
-		suite.removeContainer("proxy")
-		suite.removeContainer("web")
-		suite.removeContainer("postgres")
-		suite.removeContainer("mysql")
-		suite.removeContainer("mongodb")
-		suite.removeContainer("redis")
-		suite.removeContainer("rabbitmq")
-		suite.removeContainer("elasticsearch")
-		suite.removeContainer("certrenewer")
-		suite.removeVolume("test-project-postgres_data")
-		suite.removeVolume("test-project-mysql_data")
-		suite.removeVolume("test-project-mongodb_data")
-		suite.removeVolume("test-project-redis_data")
-		suite.removeVolume("test-project-rabbitmq_data")
-		suite.removeVolume("test-project-elasticsearch_data")
-	}()
+	// Cleanup containers and volumes before the test
+	suite.cleanupDeployment()
+	defer suite.cleanupDeployment()
 
 	suite.Run("Successful deployment", func() {
-		iterator := suite.updater.Deploy(project, cfg)
-		for _, err := range iterator {
-			assert.NoError(suite.T(), err)
-		}
-		time.Sleep(5 * time.Second)
-
-		requestStats := struct {
-			totalRequests  int32
-			failedRequests int32
-		}{}
-
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
+		// Deploy the initial configuration
+		events := suite.updater.Deploy(ctx, project, cfg)
+		for event := range events {
+			suite.T().Logf("Event: %s", event)
+			if event.Type == EventTypeError {
+				assert.Fail(suite.T(), "Deployment error: %s", event.Message)
+				return
+			}
+		}
+
+		// Wait for services to stabilize
+		time.Sleep(5 * time.Second)
+
+		// Start making requests to test zero-downtime deployment
+		var requestStats struct {
+			totalRequests  int32
+			failedRequests int32
+		}
+
+		requestCtx, requestCancel := context.WithCancel(context.Background())
+		defer requestCancel()
 
 		for i := 0; i < 10; i++ {
 			go func() {
 				for {
 					select {
-					case <-ctx.Done():
+					case <-requestCtx.Done():
 						return
 					default:
 						resp, err := http.Get("https://localhost/")
@@ -276,28 +256,47 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 			}()
 		}
 
+		// Wait for some requests to be made
 		time.Sleep(2 * time.Second)
-		assert.NoError(suite.T(), err)
 
+		// Update the service image to trigger a redeployment
 		cfg.Services[0].Image = "nginx:1.20"
 
-		iterator = suite.updater.Deploy(project, cfg)
-		for _, err := range iterator {
-			assert.NoError(suite.T(), err)
+		suite.T().Logf("Updating service image to nginx:1.20")
+
+		// Redeploy with the updated configuration
+		events = suite.updater.Deploy(ctx, project, cfg)
+		for event := range events {
+			suite.T().Logf("Event: %s", event)
+			if event.Type == EventTypeError {
+				assert.Fail(suite.T(), "Deployment error: %s", event.Message)
+				return
+			}
+			// Optionally handle other events
 		}
+
+		// Wait for the redeployment to complete
+		time.Sleep(2 * time.Second)
+		requestCancel()
 
 		fmt.Printf("Total requests: %d\n", requestStats.totalRequests)
 		fmt.Printf("Failed requests: %d\n", requestStats.failedRequests)
 
 		serviceName := "web"
 
+		// Assert that there were no failed requests during the deployment
 		assert.Equal(suite.T(), int32(0), requestStats.failedRequests, "Expected zero failed requests during zero-downtime deployment")
+
 		containerInfo := suite.inspectContainer(serviceName)
 
 		suite.Run("Updated Container State and Config", func() {
-			assert.Equal(suite.T(), "running", containerInfo["State"].(map[string]interface{})["Status"])
-			assert.Contains(suite.T(), containerInfo["Config"].(map[string]interface{})["Image"], "nginx:1.20")
-			assert.Equal(suite.T(), project, containerInfo["HostConfig"].(map[string]interface{})["NetworkMode"])
+			state := containerInfo["State"].(map[string]interface{})
+			config := containerInfo["Config"].(map[string]interface{})
+			hostConfig := containerInfo["HostConfig"].(map[string]interface{})
+
+			assert.Equal(suite.T(), "running", state["Status"])
+			assert.Contains(suite.T(), config["Image"], "nginx:1.20")
+			assert.Equal(suite.T(), project, hostConfig["NetworkMode"])
 		})
 
 		suite.Run("Updated Network Aliases", func() {
@@ -308,4 +307,25 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 			assert.Contains(suite.T(), aliases, serviceName)
 		})
 	})
+}
+
+// Helper function to clean up deployment artifacts
+func (suite *DeploymentTestSuite) cleanupDeployment() {
+	containers := []string{"proxy", "web", "postgres", "mysql", "mongodb", "redis", "rabbitmq", "elasticsearch", "certrenewer"}
+	volumes := []string{
+		"test-project-postgres_data",
+		"test-project-mysql_data",
+		"test-project-mongodb_data",
+		"test-project-redis_data",
+		"test-project-rabbitmq_data",
+		"test-project-elasticsearch_data",
+	}
+
+	for _, container := range containers {
+		suite.removeContainer(container)
+	}
+
+	for _, volume := range volumes {
+		suite.removeVolume(volume)
+	}
 }

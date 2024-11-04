@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -77,18 +78,14 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 
 	deploy := deployment.NewDeployment(client)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	events := deploy.Deploy(ctx, project, cfg)
+
 	var spinner *pterm.SpinnerPrinter
 
-	for event, err := range deploy.Deploy(project, cfg) {
-		if err != nil {
-			if spinner != nil {
-				spinner.Fail(fmt.Sprintf("Deployment error: %v", err))
-			} else {
-				console.ErrPrintln(fmt.Sprintf("Deployment error: %v", err))
-			}
-			return err
-		}
-
+	for event := range events {
 		switch event.Type {
 		case deployment.EventTypeStart:
 			if spinner != nil {
@@ -108,6 +105,13 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 			} else {
 				console.Success(event.Message)
 			}
+		case deployment.EventTypeError:
+			if spinner != nil {
+				spinner.Fail(fmt.Sprintf("Deployment error: %s", event.Message))
+			} else {
+				console.ErrPrintln(fmt.Sprintf("Deployment error: %s", event.Message))
+			}
+			return fmt.Errorf("deployment error: %s", event.Message)
 		case deployment.EventTypeComplete:
 			if spinner != nil {
 				spinner.Success(event.Message)
