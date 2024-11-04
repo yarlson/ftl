@@ -50,6 +50,30 @@ func ConnectWithUser(host string, port int, user string, key []byte) (*Client, e
 	}, nil
 }
 
+func ConnectWithUserPassword(host string, port string, user string, password string) (*Client, error) {
+	config := &ssh.ClientConfig{
+		User: user,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	addr := fmt.Sprintf("%s:%s", host, port)
+
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect: %v", err)
+	}
+
+	return &Client{
+		sshClient: client,
+		config:    config,
+		addr:      addr,
+	}, nil
+}
+
 func (c *Client) ensureConnected() error {
 	if c.sshClient != nil {
 		_, _, err := c.sshClient.SendRequest("keepalive@golang.org", true, nil)
