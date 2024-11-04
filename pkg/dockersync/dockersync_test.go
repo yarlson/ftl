@@ -2,113 +2,20 @@ package dockersync
 
 import (
 	"context"
-	"fmt"
+	"github.com/yarlson/ftl/tests"
 	"io"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
-
 	"github.com/yarlson/ftl/pkg/executor/ssh"
 )
 
 const (
 	testImage = "golang:1.21-alpine"
-	sshPort   = "22/tcp"
 )
-
-type testContainer struct {
-	container testcontainers.Container
-	sshPort   nat.Port
-}
-
-func setupTestContainer(t *testing.T) (*testContainer, error) {
-	ctx := context.Background()
-
-	// Build the test container image
-	buildCtx, err := createBuildContext(t)
-	require.NoError(t, err)
-	defer os.RemoveAll(buildCtx)
-
-	req := testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			FromDockerfile: testcontainers.FromDockerfile{
-				Context:    buildCtx,
-				Dockerfile: "Dockerfile",
-			},
-			ExposedPorts: []string{sshPort},
-			Privileged:   true, // Required for Docker daemon
-			WaitingFor: wait.ForAll(
-				wait.ForListeningPort(sshPort),
-			),
-			Env: map[string]string{
-				"DOCKER_TLS_CERTDIR": "", // Disable TLS for testing
-			},
-		},
-		Started: true,
-	}
-
-	container, err := testcontainers.GenericContainer(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start container: %w", err)
-	}
-
-	mappedPort, err := container.MappedPort(ctx, nat.Port(sshPort))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get mapped port: %w", err)
-	}
-
-	return &testContainer{
-		container: container,
-		sshPort:   mappedPort,
-	}, nil
-}
-
-func createBuildContext(t *testing.T) (string, error) {
-	dir, err := os.MkdirTemp("", "dockersync-test")
-	if err != nil {
-		return "", err
-	}
-
-	// Copy Dockerfile
-	dockerfile := filepath.Join(dir, "Dockerfile")
-	if err := copyFile("testdata/Dockerfile", dockerfile); err != nil {
-		os.RemoveAll(dir)
-		return "", err
-	}
-
-	// Copy entrypoint script
-	entrypoint := filepath.Join(dir, "entrypoint.sh")
-	if err := copyFile("testdata/entrypoint.sh", entrypoint); err != nil {
-		os.RemoveAll(dir)
-		return "", err
-	}
-
-	return dir, nil
-}
-
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	return err
-}
 
 func setupTestImage(t *testing.T, dockerClient *client.Client) error {
 	ctx := context.Background()
@@ -131,13 +38,13 @@ func TestImageSync(t *testing.T) {
 
 	// Set up test container
 	t.Log("Setting up test container...")
-	tc, err := setupTestContainer(t)
+	tc, err := tests.SetupTestContainer(t)
 	require.NoError(t, err)
-	defer func() { _ = tc.container.Terminate(context.Background()) }()
+	defer func() { _ = tc.Container.Terminate(context.Background()) }()
 
 	// Create SSH client
 	t.Log("Creating SSH client...")
-	sshClient, err := ssh.ConnectWithUserPassword("127.0.0.1", tc.sshPort.Port(), "root", "testpassword")
+	sshClient, err := ssh.ConnectWithUserPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
 	require.NoError(t, err)
 	defer sshClient.Close()
 
