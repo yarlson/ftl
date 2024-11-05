@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	ssh2 "github.com/yarlson/ftl/pkg/ssh"
-
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +22,8 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
+
+	ftlssh "github.com/yarlson/ftl/pkg/ssh"
 )
 
 func TestFindSSHKey(t *testing.T) {
@@ -97,7 +97,7 @@ func TestRunner_CreateTunnel(t *testing.T) {
 	key, err := os.ReadFile(privateKeyPath)
 	require.NoError(t, err)
 
-	client, err := ssh2.NewSSHClientWithKey("localhost", sshPort.Int(), "root", key)
+	client, err := ftlssh.NewSSHClientWithKey("localhost", sshPort.Int(), "root", key)
 	require.NoError(t, err)
 	defer client.Close()
 

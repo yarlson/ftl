@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/yarlson/ftl/pkg/imagesync"
+
 	"github.com/yarlson/ftl/pkg/ssh"
 
 	"github.com/pterm/pterm"
@@ -78,7 +80,8 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 	}
 	defer runner.Close()
 
-	deploy := deployment.NewDeployment(runner)
+	syncer := imagesync.NewImageSync(imagesync.Config{}, runner)
+	deploy := deployment.NewDeployment(runner, syncer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

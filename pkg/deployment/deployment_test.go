@@ -17,7 +17,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-
 	"github.com/yarlson/ftl/pkg/config"
 )
 
@@ -64,7 +63,7 @@ func (suite *DeploymentTestSuite) TearDownSuite() {
 
 func (suite *DeploymentTestSuite) SetupTest() {
 	runner := &LocalRunner{}
-	suite.updater = NewDeployment(runner)
+	suite.updater = NewDeployment(runner, nil)
 }
 
 func (suite *DeploymentTestSuite) removeContainer(containerName string) {

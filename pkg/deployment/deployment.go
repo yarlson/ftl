@@ -24,6 +24,10 @@ type Runner interface {
 	CopyFile(ctx context.Context, from, to string) error
 }
 
+type ImageSyncer interface {
+	Sync(ctx context.Context) error
+}
+
 type EventType string
 
 const (
@@ -41,10 +45,11 @@ type Event struct {
 
 type Deployment struct {
 	runner Runner
+	syncer ImageSyncer
 }
 
-func NewDeployment(runner Runner) *Deployment {
-	return &Deployment{runner: runner}
+func NewDeployment(runner Runner, syncer ImageSyncer) *Deployment {
+	return &Deployment{runner: runner, syncer: syncer}
 }
 
 func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Config) <-chan Event {

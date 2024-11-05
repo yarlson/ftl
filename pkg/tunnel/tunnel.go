@@ -11,8 +11,9 @@ import (
 	"strings"
 
 	"github.com/bramvdbogaerde/go-scp"
-	ssh2 "github.com/yarlson/ftl/pkg/ssh"
 	"golang.org/x/crypto/ssh"
+
+	ftlssh "github.com/yarlson/ftl/pkg/ssh"
 )
 
 type Tunnel struct {
@@ -216,7 +217,7 @@ func FindKeyAndConnectWithUser(host string, port int, user, keyPath string) (*ss
 		return nil, nil, fmt.Errorf("failed to find SSH key: %w", err)
 	}
 
-	client, err := ssh2.NewSSHClientWithKey(host, port, user, key)
+	client, err := ftlssh.NewSSHClientWithKey(host, port, user, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to establish SSH connection: %w", err)
 	}

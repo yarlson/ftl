@@ -6,13 +6,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/yarlson/ftl/pkg/ssh"
-	"github.com/yarlson/ftl/tests"
-
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/require"
+
 	"github.com/yarlson/ftl/pkg/runner/remote"
+	"github.com/yarlson/ftl/pkg/ssh"
+	"github.com/yarlson/ftl/tests"
 )
 
 const (
