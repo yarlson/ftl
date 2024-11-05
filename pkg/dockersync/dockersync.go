@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/yarlson/ftl/pkg/runner/ssh"
+	"github.com/yarlson/ftl/pkg/runner/remote"
 )
 
 // Config holds the configuration for the Docker image sync operation.
@@ -27,7 +27,7 @@ type Config struct {
 // ImageSync handles Docker image synchronization operations.
 type ImageSync struct {
 	cfg    Config
-	client *ssh.Runner
+	client *remote.Runner
 }
 
 // ImageData represents Docker image metadata.
@@ -62,7 +62,7 @@ type ImageData struct {
 }
 
 // NewImageSync creates a new ImageSync instance with the provided configuration and SSH client.
-func NewImageSync(cfg Config, client *ssh.Runner) *ImageSync {
+func NewImageSync(cfg Config, client *remote.Runner) *ImageSync {
 	if cfg.MaxParallel <= 0 {
 		cfg.MaxParallel = 4
 	}
@@ -146,7 +146,7 @@ func (s *ImageSync) inspectLocalImage() (*ImageData, error) {
 }
 
 func (s *ImageSync) inspectRemoteImage(ctx context.Context) (*ImageData, error) {
-	output, err := s.client.RunCommandOutput(fmt.Sprintf("docker inspect %s", s.cfg.ImageName))
+	output, err := s.client.RunCommandWithOutput(fmt.Sprintf("docker inspect %s", s.cfg.ImageName))
 	if err != nil {
 		return nil, err
 	}

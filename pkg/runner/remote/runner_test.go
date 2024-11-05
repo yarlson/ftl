@@ -1,4 +1,4 @@
-package ssh
+package remote
 
 import (
 	"context"
@@ -95,9 +95,11 @@ func TestRunner_CreateTunnel(t *testing.T) {
 	key, err := os.ReadFile(privateKeyPath)
 	require.NoError(t, err)
 
-	client, err := NewRunnerWithKey("localhost", sshPort.Int(), "root", key)
+	client, err := NewSSHClientWithKey("localhost", sshPort.Int(), "root", key)
 	require.NoError(t, err)
 	defer client.Close()
+
+	runner := NewRunner(client)
 
 	// Test
 	localPort, remotePort := 23451, 80
@@ -106,7 +108,7 @@ func TestRunner_CreateTunnel(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- client.CreateTunnel(tunnelCtx, localPort, remotePort)
+		errCh <- runner.CreateTunnel(tunnelCtx, localPort, remotePort)
 	}()
 
 	require.NoError(t, waitForPort(t, localPort, 5*time.Second))

@@ -10,7 +10,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/require"
-	"github.com/yarlson/ftl/pkg/runner/ssh"
+	"github.com/yarlson/ftl/pkg/runner/remote"
 )
 
 const (
@@ -44,9 +44,11 @@ func TestImageSync(t *testing.T) {
 
 	// Create SSH client
 	t.Log("Creating SSH client...")
-	sshClient, err := ssh.NewRunnerWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
+	sshClient, err := remote.NewSSHClientWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
 	require.NoError(t, err)
 	defer sshClient.Close()
+
+	runner := remote.NewRunner(sshClient)
 
 	// Create Docker client
 	t.Log("Creating Docker client...")
@@ -75,7 +77,7 @@ func TestImageSync(t *testing.T) {
 		MaxParallel: 4,
 	}
 
-	sync := NewImageSync(cfg, sshClient)
+	sync := NewImageSync(cfg, runner)
 
 	// Run sync
 	t.Log("Running sync...")
@@ -85,7 +87,7 @@ func TestImageSync(t *testing.T) {
 
 	// Verify image exists on remote
 	t.Log("Verifying image exists on remote...")
-	output, err := sshClient.RunCommandOutput("docker images --format '{{.Repository}}:{{.Tag}}'")
+	output, err := runner.RunCommandWithOutput("docker images --format '{{.Repository}}:{{.Tag}}'")
 	require.NoError(t, err)
 	require.Contains(t, output, testImage)
 

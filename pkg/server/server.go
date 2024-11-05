@@ -13,7 +13,7 @@ import (
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/runner/local"
-	sshPkg "github.com/yarlson/ftl/pkg/runner/ssh"
+	sshPkg "github.com/yarlson/ftl/pkg/runner/remote"
 )
 
 func DockerLogin(ctx context.Context, dockerUsername, dockerPassword string) error {
@@ -30,20 +30,21 @@ func DockerLogin(ctx context.Context, dockerUsername, dockerPassword string) err
 
 type Server struct {
 	config *config.Server
-	client *sshPkg.Runner
+	runner *sshPkg.Runner
 }
 
 func NewServer(config *config.Server) (*Server, error) {
-	client, rootKey, err := sshPkg.FindKeyAndConnectWithUser(config.Host, config.Port, "root", config.SSHKey)
+	sshClient, rootKey, err := sshPkg.FindKeyAndConnectWithUser(config.Host, config.Port, "root", config.SSHKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
 	}
 
 	config.RootSSHKey = string(rootKey)
 
+	runner := sshPkg.NewRunner(sshClient)
 	return &Server{
 		config: config,
-		client: client,
+		runner: runner,
 	}, nil
 }
 
@@ -85,7 +86,7 @@ func (s *Server) installServerSoftware(ctx context.Context) error {
 		"apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
 	}
 
-	return s.client.RunCommands(ctx, commands)
+	return s.runner.RunCommands(ctx, commands)
 }
 
 func (s *Server) configureServerFirewall(ctx context.Context) error {
@@ -99,7 +100,7 @@ func (s *Server) configureServerFirewall(ctx context.Context) error {
 		"echo 'y' | ufw enable",
 	}
 
-	return s.client.RunCommands(ctx, commands)
+	return s.runner.RunCommands(ctx, commands)
 }
 
 func (s *Server) createServerUser(ctx context.Context) error {
@@ -107,7 +108,7 @@ func (s *Server) createServerUser(ctx context.Context) error {
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := s.client.RunCommand(checkCtx, checkUserCmd)
+	_, err := s.runner.RunCommand(checkCtx, checkUserCmd)
 	if err == nil {
 		console.Warning(fmt.Sprintf("User %s already exists. Skipping user creation.", s.config.User))
 	} else {
@@ -116,14 +117,14 @@ func (s *Server) createServerUser(ctx context.Context) error {
 			fmt.Sprintf("echo '%s:%s' | chpasswd", s.config.User, s.config.Passwd),
 		}
 
-		err := s.client.RunCommands(ctx, commands)
+		err := s.runner.RunCommands(ctx, commands)
 		if err != nil {
 			return err
 		}
 	}
 
 	addToDockerCmd := fmt.Sprintf("usermod -aG docker %s", s.config.User)
-	return s.client.RunCommands(ctx, []string{addToDockerCmd})
+	return s.runner.RunCommands(ctx, []string{addToDockerCmd})
 }
 
 func (s *Server) setupServerSSHKey(ctx context.Context) error {
@@ -159,7 +160,7 @@ func (s *Server) setupServerSSHKey(ctx context.Context) error {
 		fmt.Sprintf("chmod 600 %s", authKeysFile),
 	}
 
-	return s.client.RunCommands(ctx, commands)
+	return s.runner.RunCommands(ctx, commands)
 }
 
 func (s *Server) configureDockerHub(ctx context.Context, dockerUsername, dockerPassword string) error {
@@ -167,5 +168,5 @@ func (s *Server) configureDockerHub(ctx context.Context, dockerUsername, dockerP
 		fmt.Sprintf("docker login -u %s -p %s", dockerUsername, dockerPassword),
 	}
 
-	return s.client.RunCommands(ctx, commands)
+	return s.runner.RunCommands(ctx, commands)
 }

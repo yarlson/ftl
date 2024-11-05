@@ -12,7 +12,7 @@ import (
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/deployment"
-	"github.com/yarlson/ftl/pkg/runner/ssh"
+	"github.com/yarlson/ftl/pkg/runner/remote"
 )
 
 // deployCmd represents the deploy command
@@ -134,12 +134,12 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 	return nil
 }
 
-func connectToServer(server config.Server) (*ssh.Runner, error) {
+func connectToServer(server config.Server) (*remote.Runner, error) {
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
-	runner, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
+	sshClient, _, err := remote.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return runner, nil
+	return remote.NewRunner(sshClient), nil
 }

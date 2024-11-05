@@ -1,4 +1,4 @@
-package ssh
+package remote
 
 import (
 	"bytes"
@@ -17,80 +17,12 @@ import (
 
 type Runner struct {
 	sshClient *ssh.Client
-	config    *ssh.ClientConfig
-	addr      string
 }
 
-func NewRunnerWithKey(host string, port int, user string, key []byte) (*Runner, error) {
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %v", err)
-	}
-
-	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-
-	addr := fmt.Sprintf("%s:%d", host, port)
-
-	client, err := ssh.Dial("tcp", addr, config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %v", err)
-	}
-
+func NewRunner(sshClient *ssh.Client) *Runner {
 	return &Runner{
-		sshClient: client,
-		config:    config,
-		addr:      addr,
-	}, nil
-}
-
-func NewRunnerWithPassword(host string, port string, user string, password string) (*Runner, error) {
-	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(password),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
+		sshClient: sshClient,
 	}
-
-	addr := fmt.Sprintf("%s:%s", host, port)
-
-	client, err := ssh.Dial("tcp", addr, config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %v", err)
-	}
-
-	return &Runner{
-		sshClient: client,
-		config:    config,
-		addr:      addr,
-	}, nil
-}
-
-func (c *Runner) ensureConnected() error {
-	if c.sshClient != nil {
-		_, _, err := c.sshClient.SendRequest("keepalive@golang.org", true, nil)
-		if err == nil {
-			return nil
-		}
-	}
-
-	var err error
-	for i := 0; i < 3; i++ {
-		c.sshClient, err = ssh.Dial("tcp", c.addr, c.config)
-		if err == nil {
-			return nil
-		}
-		time.Sleep(time.Second * time.Duration(i+1))
-	}
-	return fmt.Errorf("failed to re-establish SSH connection after 3 attempts")
 }
 
 func (c *Runner) Close() error {
@@ -104,10 +36,6 @@ func (c *Runner) Close() error {
 }
 
 func (c *Runner) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
-	if err := c.ensureConnected(); err != nil {
-		return nil, err
-	}
-
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("unable to create session: %v", err)
@@ -130,14 +58,14 @@ func (c *Runner) RunCommand(ctx context.Context, command string, args ...string)
 	session.Stderr = pw
 
 	if err := session.Start(fullCommand); err != nil {
-		pw.Close()
+		_ = pw.Close()
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
 	done := make(chan error, 1)
 	go func() {
 		done <- session.Wait()
-		pw.Close()
+		_ = pw.Close()
 	}()
 
 	var output bytes.Buffer
@@ -169,10 +97,6 @@ func (c *Runner) RunCommand(ctx context.Context, command string, args ...string)
 }
 
 func (c *Runner) CopyFile(ctx context.Context, src, dst string) error {
-	if err := c.ensureConnected(); err != nil {
-		return err
-	}
-
 	client, err := scp.NewClientBySSH(c.sshClient)
 	if err != nil {
 		return fmt.Errorf("failed to create SCP client: %w", err)
@@ -187,14 +111,11 @@ func (c *Runner) CopyFile(ctx context.Context, src, dst string) error {
 }
 
 func (c *Runner) RunCommands(ctx context.Context, commands []string) error {
-	operations := make([]func() error, len(commands))
-	for i, command := range commands {
-		cmd := command // Create a new variable to avoid closure issues
-		operations[i] = func() error {
-			return c.runSingleCommand(ctx, cmd)
+	for _, command := range commands {
+		if err := c.runSingleCommand(ctx, command); err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
 
@@ -218,7 +139,7 @@ func (c *Runner) runSingleCommand(ctx context.Context, command string) error {
 	done := make(chan error, 1)
 	go func() {
 		done <- session.Wait()
-		pw.Close()
+		_ = pw.Close()
 	}()
 
 	var output strings.Builder
@@ -239,7 +160,7 @@ func (c *Runner) runSingleCommand(ctx context.Context, command string) error {
 	}
 }
 
-func (c *Runner) RunCommandOutput(command string) (string, error) {
+func (c *Runner) RunCommandWithOutput(command string) (string, error) {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return "", err
@@ -289,13 +210,13 @@ func FindSSHKey(keyPath string) ([]byte, error) {
 }
 
 // FindKeyAndConnectWithUser finds an SSH key and establishes a connection
-func FindKeyAndConnectWithUser(host string, port int, user, keyPath string) (*Runner, []byte, error) {
+func FindKeyAndConnectWithUser(host string, port int, user, keyPath string) (*ssh.Client, []byte, error) {
 	key, err := FindSSHKey(keyPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find SSH key: %w", err)
 	}
 
-	client, err := NewRunnerWithKey(host, port, user, key)
+	client, err := NewSSHClientWithKey(host, port, user, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to establish SSH connection: %w", err)
 	}
@@ -318,10 +239,6 @@ func getSSHDir() (string, error) {
 }
 
 func (c *Runner) CreateTunnel(ctx context.Context, localPort, remotePort int) error {
-	if err := c.ensureConnected(); err != nil {
-		return fmt.Errorf("failed to ensure SSH connection: %w", err)
-	}
-
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", localPort))
 	if err != nil {
 		return fmt.Errorf("failed to start local listener: %w", err)
@@ -342,13 +259,6 @@ func (c *Runner) CreateTunnel(ctx context.Context, localPort, remotePort int) er
 
 			go func(localConn net.Conn) {
 				defer localConn.Close()
-
-				session, err := c.sshClient.NewSession()
-				if err != nil {
-					fmt.Printf("Failed to create session: %v\n", err)
-					return
-				}
-				defer session.Close()
 
 				remoteConn, err := c.sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
 				if err != nil {
@@ -391,4 +301,47 @@ func (c *Runner) CreateTunnel(ctx context.Context, localPort, remotePort int) er
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// NewSSHClientWithKey creates a new ssh.Client using a private key
+func NewSSHClientWithKey(host string, port int, user string, key []byte) (*ssh.Client, error) {
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %v", err)
+	}
+
+	config := &ssh.ClientConfig{
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	addr := fmt.Sprintf("%s:%d", host, port)
+
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect: %v", err)
+	}
+
+	return client, nil
+}
+
+// NewSSHClientWithPassword creates a new ssh.Client using a password
+func NewSSHClientWithPassword(host string, port string, user string, password string) (*ssh.Client, error) {
+	config := &ssh.ClientConfig{
+		User:            user,
+		Auth:            []ssh.AuthMethod{ssh.Password(password)},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
+	}
+
+	addr := fmt.Sprintf("%s:%s", host, port)
+
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect: %v", err)
+	}
+
+	return client, nil
 }
