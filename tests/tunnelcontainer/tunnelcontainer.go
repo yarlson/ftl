@@ -1,4 +1,4 @@
-package tests
+package tunnelcontainer
 
 import (
 	"context"
@@ -19,12 +19,12 @@ const (
 	sshPort = "22/tcp"
 )
 
-type TestContainer struct {
+type Container struct {
 	Container testcontainers.Container
 	SshPort   nat.Port
 }
 
-func SetupTestContainer(t *testing.T) (*TestContainer, error) {
+func NewContainer(t *testing.T) (*Container, error) {
 	ctx := context.Background()
 
 	buildCtx, err := createBuildContext()
@@ -59,7 +59,7 @@ func SetupTestContainer(t *testing.T) (*TestContainer, error) {
 		return nil, fmt.Errorf("failed to get mapped port: %w", err)
 	}
 
-	return &TestContainer{
+	return &Container{
 		Container: container,
 		SshPort:   mappedPort,
 	}, nil
@@ -78,13 +78,13 @@ func createBuildContext() (string, error) {
 	packageDir := filepath.Dir(currentFile)
 
 	dockerfile := filepath.Join(dir, "Dockerfile")
-	if err := copyFile(filepath.Join(packageDir, "testdata", "Dockerfile"), dockerfile); err != nil {
+	if err := copyFile(filepath.Join(packageDir, "docker", "Dockerfile"), dockerfile); err != nil {
 		os.RemoveAll(dir)
 		return "", err
 	}
 
 	entrypoint := filepath.Join(dir, "entrypoint.sh")
-	if err := copyFile(filepath.Join(packageDir, "testdata", "entrypoint.sh"), entrypoint); err != nil {
+	if err := copyFile(filepath.Join(packageDir, "docker", "entrypoint.sh"), entrypoint); err != nil {
 		os.RemoveAll(dir)
 		return "", err
 	}
