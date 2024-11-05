@@ -4,15 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/bramvdbogaerde/go-scp"
+	ssh2 "github.com/yarlson/ftl/pkg/ssh"
+	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
-
-	"github.com/bramvdbogaerde/go-scp"
-	"golang.org/x/crypto/ssh"
 )
 
 type Runner struct {
@@ -216,7 +215,7 @@ func FindKeyAndConnectWithUser(host string, port int, user, keyPath string) (*ss
 		return nil, nil, fmt.Errorf("failed to find SSH key: %w", err)
 	}
 
-	client, err := NewSSHClientWithKey(host, port, user, key)
+	client, err := ssh2.NewSSHClientWithKey(host, port, user, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to establish SSH connection: %w", err)
 	}
@@ -301,47 +300,4 @@ func (c *Runner) CreateTunnel(ctx context.Context, localPort, remotePort int) er
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-}
-
-// NewSSHClientWithKey creates a new ssh.Client using a private key
-func NewSSHClientWithKey(host string, port int, user string, key []byte) (*ssh.Client, error) {
-	signer, err := ssh.ParsePrivateKey(key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %v", err)
-	}
-
-	config := &ssh.ClientConfig{
-		User:            user,
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-
-	addr := fmt.Sprintf("%s:%d", host, port)
-
-	client, err := ssh.Dial("tcp", addr, config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %v", err)
-	}
-
-	return client, nil
-}
-
-// NewSSHClientWithPassword creates a new ssh.Client using a password
-func NewSSHClientWithPassword(host string, port string, user string, password string) (*ssh.Client, error) {
-	config := &ssh.ClientConfig{
-		User:            user,
-		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
-	}
-
-	addr := fmt.Sprintf("%s:%s", host, port)
-
-	client, err := ssh.Dial("tcp", addr, config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %v", err)
-	}
-
-	return client, nil
 }

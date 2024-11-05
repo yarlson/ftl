@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/pem"
 	"fmt"
+	ssh2 "github.com/yarlson/ftl/pkg/ssh"
 	"io"
 	"net"
 	"net/http"
@@ -95,7 +96,7 @@ func TestRunner_CreateTunnel(t *testing.T) {
 	key, err := os.ReadFile(privateKeyPath)
 	require.NoError(t, err)
 
-	client, err := NewSSHClientWithKey("localhost", sshPort.Int(), "root", key)
+	client, err := ssh2.NewSSHClientWithKey("localhost", sshPort.Int(), "root", key)
 	require.NoError(t, err)
 	defer client.Close()
 

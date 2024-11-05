@@ -2,6 +2,7 @@ package imagesync
 
 import (
 	"context"
+	"github.com/yarlson/ftl/pkg/ssh"
 	"github.com/yarlson/ftl/tests"
 	"io"
 	"os"
@@ -44,7 +45,7 @@ func TestImageSync(t *testing.T) {
 
 	// Create SSH runner
 	t.Log("Creating SSH runner...")
-	sshClient, err := remote.NewSSHClientWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
+	sshClient, err := ssh.NewSSHClientWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
 	require.NoError(t, err)
 	defer sshClient.Close()
 
