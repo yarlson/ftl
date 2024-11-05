@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     gnupg \
+    libnss3-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up SSH server
@@ -31,6 +32,11 @@ RUN apt-get update && apt-get install -y \
     docker-buildx-plugin \
     docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
+
+# Install mkcert
+RUN curl -JLO "https://dl.filippo.io/mkcert/latest?for=linux/$(dpkg --print-architecture)" \
+    && chmod +x mkcert-v*-linux-* \
+    && mv mkcert-v*-linux-* /usr/local/bin/mkcert
 
 # Expose SSH port
 EXPOSE 22

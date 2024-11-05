@@ -3,87 +3,74 @@
 package deployment
 
 import (
-	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"os/exec"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+
 	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/runner/remote"
+	"github.com/yarlson/ftl/pkg/ssh"
+	"github.com/yarlson/ftl/tests/dockercontainer"
 )
 
 type DeploymentTestSuite struct {
 	suite.Suite
-	updater *Deployment
-	network string
+	runner     *remote.Runner
+	deployment *Deployment
+	network    string
+	tc         *dockercontainer.Container
 }
 
 func TestDeploymentSuite(t *testing.T) {
 	suite.Run(t, new(DeploymentTestSuite))
 }
 
-type LocalRunner struct{}
-
-func (e *LocalRunner) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
-	cmd := exec.CommandContext(ctx, command, args...)
-
-	var combinedOutput bytes.Buffer
-	cmd.Stdout = &combinedOutput
-	cmd.Stderr = &combinedOutput
-
-	if err := cmd.Run(); err != nil {
-		return nil, err
-	}
-
-	return bytes.NewReader(combinedOutput.Bytes()), nil
-}
-
-func (e *LocalRunner) CopyFile(ctx context.Context, src, dst string) error {
-	cmd := exec.CommandContext(ctx, "cp", src, dst)
-
-	return cmd.Run()
-}
-
-func (suite *DeploymentTestSuite) SetupSuite() {
-	suite.network = "ftl-test-network"
-	_ = exec.Command("docker", "network", "create", suite.network).Run()
-}
-
-func (suite *DeploymentTestSuite) TearDownSuite() {
-	_ = exec.Command("docker", "network", "rm", suite.network).Run()
-}
-
 func (suite *DeploymentTestSuite) SetupTest() {
-	runner := &LocalRunner{}
-	suite.updater = NewDeployment(runner, nil)
+	tc, err := dockercontainer.NewContainer(suite.T())
+	suite.Require().NoError(err)
+
+	suite.network = "ftl-test-network"
+	suite.tc = tc
+	sshClient, err := ssh.NewSSHClientWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
+	suite.Require().NoError(err)
+
+	runner := remote.NewRunner(sshClient)
+	suite.runner = runner
+	suite.deployment = NewDeployment(runner, nil)
+}
+
+func (suite *DeploymentTestSuite) TearDownTest() {
+	suite.tc.Container.Terminate(context.Background())
 }
 
 func (suite *DeploymentTestSuite) removeContainer(containerName string) {
-	_ = exec.Command("docker", "stop", containerName).Run() // nolint: errcheck
-	_ = exec.Command("docker", "rm", "-f", containerName).Run()
+	_, _ = suite.runner.RunCommand(context.Background(), "docker", "stop", containerName)
+	_, _ = suite.runner.RunCommand(context.Background(), "docker", "rm", "-f", containerName)
 }
 
 func (suite *DeploymentTestSuite) removeVolume(volumeName string) {
-	_ = exec.Command("docker", "volume", "rm", volumeName).Run() // nolint: errcheck
+	_, _ = suite.runner.RunCommand(context.Background(), "docker", "volume", "rm", volumeName)
 }
 
 func (suite *DeploymentTestSuite) inspectContainer(containerName string) map[string]interface{} {
-	cmd := exec.Command("docker", "inspect", containerName)
-	output, err := cmd.Output()
-	assert.NoError(suite.T(), err)
+	output, err := suite.runner.RunCommand(context.Background(), "docker", "inspect", containerName)
+	suite.Require().NoError(err)
+	outputBytes, err := io.ReadAll(output)
+	suite.Require().NoError(err)
 
 	var containerInfo []map[string]interface{}
-	err = json.Unmarshal(output, &containerInfo)
-	assert.NoError(suite.T(), err)
-	assert.Len(suite.T(), containerInfo, 1)
+	err = json.Unmarshal(outputBytes, &containerInfo)
+	suite.Require().NoError(err)
+	suite.Require().Len(containerInfo, 1)
 
 	return containerInfo[0]
 }
@@ -188,8 +175,8 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 	}
 
 	// Prepare the project folder
-	projectPath, err := suite.updater.prepareProjectFolder(project)
-	assert.NoError(suite.T(), err)
+	projectPath, err := suite.deployment.prepareProjectFolder(project)
+	suite.Require().NoError(err)
 
 	// Generate certificates
 	proxyCertPath := filepath.Join(projectPath, "localhost.crt")
@@ -200,8 +187,8 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 	}
 
 	for _, cmd := range mkcertCmds {
-		output, err := suite.updater.runCommand(context.Background(), cmd[0], cmd[1:]...)
-		assert.NoError(suite.T(), err, "Command output: %s", output)
+		output, err := suite.deployment.runCommand(context.Background(), cmd[0], cmd[1:]...)
+		suite.Require().NoError(err, "Command output: %s", output)
 	}
 
 	// Cleanup containers and volumes before the test
@@ -213,11 +200,11 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		defer cancel()
 
 		// Deploy the initial configuration
-		events := suite.updater.Deploy(ctx, project, cfg)
+		events := suite.deployment.Deploy(ctx, project, cfg)
 		for event := range events {
 			suite.T().Logf("Event: %s", event)
 			if event.Type == EventTypeError {
-				assert.Fail(suite.T(), "Deployment error: %s", event.Message)
+				suite.Require().Fail(event.Message, "Deployment error %s", event.Message)
 				return
 			}
 		}
@@ -236,12 +223,18 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 
 		for i := 0; i < 10; i++ {
 			go func() {
+				client := &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					},
+				}
 				for {
 					select {
 					case <-requestCtx.Done():
 						return
 					default:
-						resp, err := http.Get("https://localhost/")
+						port := suite.tc.SslPort.Port()
+						resp, err := client.Get(fmt.Sprintf("https://localhost:%s/", port))
 						atomic.AddInt32(&requestStats.totalRequests, 1)
 						if err != nil || resp.StatusCode != http.StatusOK {
 							atomic.AddInt32(&requestStats.failedRequests, 1)
@@ -264,11 +257,11 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		suite.T().Logf("Updating service image to nginx:1.20")
 
 		// Redeploy with the updated configuration
-		events = suite.updater.Deploy(ctx, project, cfg)
+		events = suite.deployment.Deploy(ctx, project, cfg)
 		for event := range events {
 			suite.T().Logf("Event: %s", event)
 			if event.Type == EventTypeError {
-				assert.Fail(suite.T(), "Deployment error: %s", event.Message)
+				suite.Require().Fail(event.Message, "Deployment error %s", event.Message)
 				return
 			}
 			// Optionally handle other events
@@ -284,18 +277,18 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		serviceName := "web"
 
 		// Assert that there were no failed requests during the deployment
-		assert.Equal(suite.T(), int32(0), requestStats.failedRequests, "Expected zero failed requests during zero-downtime deployment")
+		suite.Require().Equal(int32(0), requestStats.failedRequests, "Expected zero failed requests during zero-downtime deployment")
 
 		containerInfo := suite.inspectContainer(serviceName)
 
 		suite.Run("Updated Container State and Config", func() {
 			state := containerInfo["State"].(map[string]interface{})
-			config := containerInfo["Config"].(map[string]interface{})
+			cfg := containerInfo["Config"].(map[string]interface{})
 			hostConfig := containerInfo["HostConfig"].(map[string]interface{})
 
-			assert.Equal(suite.T(), "running", state["Status"])
-			assert.Contains(suite.T(), config["Image"], "nginx:1.20")
-			assert.Equal(suite.T(), project, hostConfig["NetworkMode"])
+			suite.Require().Equal("running", state["Status"])
+			suite.Require().Contains(cfg["Image"], "nginx:1.20")
+			suite.Require().Equal(project, hostConfig["NetworkMode"])
 		})
 
 		suite.Run("Updated Network Aliases", func() {
@@ -303,7 +296,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 			networks := networkSettings["Networks"].(map[string]interface{})
 			networkInfo := networks[project].(map[string]interface{})
 			aliases := networkInfo["Aliases"].([]interface{})
-			assert.Contains(suite.T(), aliases, serviceName)
+			suite.Require().Contains(aliases, serviceName)
 		})
 	})
 }

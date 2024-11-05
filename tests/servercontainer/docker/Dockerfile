@@ -19,4 +19,4 @@ RUN mkdir -p /root/.ssh
 EXPOSE 22
 
 # Start SSH server and Docker daemon
-ENTRYPOINT ["sshd", "-D"]
+ENTRYPOINT ["/usr/sbin/sshd", "-D"]

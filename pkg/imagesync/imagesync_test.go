@@ -12,7 +12,7 @@ import (
 
 	"github.com/yarlson/ftl/pkg/runner/remote"
 	"github.com/yarlson/ftl/pkg/ssh"
-	"github.com/yarlson/ftl/tests/tunnelcontainer"
+	"github.com/yarlson/ftl/tests/dockercontainer"
 )
 
 const (
@@ -40,7 +40,7 @@ func TestImageSync(t *testing.T) {
 
 	// Set up test container
 	t.Log("Setting up test container...")
-	tc, err := tunnelcontainer.NewContainer(t)
+	tc, err := dockercontainer.NewContainer(t)
 	require.NoError(t, err)
 	defer func() { _ = tc.Container.Terminate(context.Background()) }()
 

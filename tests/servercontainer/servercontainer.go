@@ -1,4 +1,4 @@
-package tunnelconatiner
+package servercontainer
 
 import (
 	"context"
@@ -54,7 +54,7 @@ func NewContainer(t *testing.T) (*Container, error) {
 		return nil, fmt.Errorf("failed to start Container: %w", err)
 	}
 
-	mappedPort, err := container.MappedPort(ctx, nat.Port(sshPort))
+	mappedPort, err := container.MappedPort(ctx, sshPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get mapped port: %w", err)
 	}
@@ -79,12 +79,6 @@ func createBuildContext() (string, error) {
 
 	dockerfile := filepath.Join(dir, "Dockerfile")
 	if err := copyFile(filepath.Join(packageDir, "docker", "Dockerfile"), dockerfile); err != nil {
-		os.RemoveAll(dir)
-		return "", err
-	}
-
-	entrypoint := filepath.Join(dir, "entrypoint.sh")
-	if err := copyFile(filepath.Join(packageDir, "docker", "entrypoint.sh"), entrypoint); err != nil {
 		os.RemoveAll(dir)
 		return "", err
 	}

@@ -1,4 +1,4 @@
-package tunnelcontainer
+package dockercontainer
 
 import (
 	"context"
@@ -17,11 +17,13 @@ import (
 
 const (
 	sshPort = "22/tcp"
+	sslPort = "443/tcp"
 )
 
 type Container struct {
 	Container testcontainers.Container
 	SshPort   nat.Port
+	SslPort   nat.Port
 }
 
 func NewContainer(t *testing.T) (*Container, error) {
@@ -37,7 +39,7 @@ func NewContainer(t *testing.T) (*Container, error) {
 				Context:    buildCtx,
 				Dockerfile: "Dockerfile",
 			},
-			ExposedPorts: []string{sshPort},
+			ExposedPorts: []string{sshPort, sslPort},
 			Privileged:   true, // Required for Docker daemon
 			WaitingFor: wait.ForAll(
 				wait.ForListeningPort(sshPort),
@@ -54,14 +56,20 @@ func NewContainer(t *testing.T) (*Container, error) {
 		return nil, fmt.Errorf("failed to start Container: %w", err)
 	}
 
-	mappedPort, err := container.MappedPort(ctx, nat.Port(sshPort))
+	mappedSshPort, err := container.MappedPort(ctx, sshPort)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get mapped port: %w", err)
+	}
+
+	mappedSslPort, err := container.MappedPort(ctx, sslPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get mapped port: %w", err)
 	}
 
 	return &Container{
 		Container: container,
-		SshPort:   mappedPort,
+		SshPort:   mappedSshPort,
+		SslPort:   mappedSslPort,
 	}, nil
 }
 
