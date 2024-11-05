@@ -1,4 +1,4 @@
-package dockersync
+package imagesync
 
 import (
 	"archive/tar"
@@ -27,42 +27,11 @@ type Config struct {
 // ImageSync handles Docker image synchronization operations.
 type ImageSync struct {
 	cfg    Config
-	client *remote.Runner
+	runner *remote.Runner
 }
 
-// ImageData represents Docker image metadata.
-type ImageData struct {
-	Config struct {
-		Hostname     string   `json:"Hostname"`
-		Domainname   string   `json:"Domainname"`
-		User         string   `json:"User"`
-		AttachStdin  bool     `json:"AttachStdin"`
-		AttachStdout bool     `json:"AttachStdout"`
-		AttachStderr bool     `json:"AttachStderr"`
-		ExposedPorts struct{} `json:"ExposedPorts"`
-		Tty          bool     `json:"Tty"`
-		OpenStdin    bool     `json:"OpenStdin"`
-		StdinOnce    bool     `json:"StdinOnce"`
-		Env          []string `json:"Env"`
-		Cmd          []string `json:"Cmd"`
-		Image        string   `json:"Image"`
-		Volumes      struct{} `json:"Volumes"`
-		WorkingDir   string   `json:"WorkingDir"`
-		Entrypoint   []string `json:"Entrypoint"`
-		OnBuild      []string `json:"OnBuild"`
-		Labels       struct{} `json:"Labels"`
-	} `json:"Config"`
-	RootFS struct {
-		Type    string   `json:"Type"`
-		Layers  []string `json:"Layers"`
-		DiffIDs []string `json:"DiffIDs"`
-	} `json:"RootFS"`
-	Architecture string `json:"Architecture"`
-	Os           string `json:"Os"`
-}
-
-// NewImageSync creates a new ImageSync instance with the provided configuration and SSH client.
-func NewImageSync(cfg Config, client *remote.Runner) *ImageSync {
+// NewImageSync creates a new ImageSync instance with the provided configuration and SSH runner.
+func NewImageSync(cfg Config, runner *remote.Runner) *ImageSync {
 	if cfg.MaxParallel <= 0 {
 		cfg.MaxParallel = 4
 	}
@@ -72,7 +41,7 @@ func NewImageSync(cfg Config, client *remote.Runner) *ImageSync {
 
 	return &ImageSync{
 		cfg:    cfg,
-		client: client,
+		runner: runner,
 	}
 }
 
@@ -126,6 +95,37 @@ func (s *ImageSync) compareImages(ctx context.Context) (bool, error) {
 	return !compareImageData(localInspect, remoteInspect), nil
 }
 
+// ImageData represents Docker image metadata.
+type ImageData struct {
+	Config struct {
+		Hostname     string   `json:"Hostname"`
+		Domainname   string   `json:"Domainname"`
+		User         string   `json:"User"`
+		AttachStdin  bool     `json:"AttachStdin"`
+		AttachStdout bool     `json:"AttachStdout"`
+		AttachStderr bool     `json:"AttachStderr"`
+		ExposedPorts struct{} `json:"ExposedPorts"`
+		Tty          bool     `json:"Tty"`
+		OpenStdin    bool     `json:"OpenStdin"`
+		StdinOnce    bool     `json:"StdinOnce"`
+		Env          []string `json:"Env"`
+		Cmd          []string `json:"Cmd"`
+		Image        string   `json:"Image"`
+		Volumes      struct{} `json:"Volumes"`
+		WorkingDir   string   `json:"WorkingDir"`
+		Entrypoint   []string `json:"Entrypoint"`
+		OnBuild      []string `json:"OnBuild"`
+		Labels       struct{} `json:"Labels"`
+	} `json:"Config"`
+	RootFS struct {
+		Type    string   `json:"Type"`
+		Layers  []string `json:"Layers"`
+		DiffIDs []string `json:"DiffIDs"`
+	} `json:"RootFS"`
+	Architecture string `json:"Architecture"`
+	Os           string `json:"Os"`
+}
+
 func (s *ImageSync) inspectLocalImage() (*ImageData, error) {
 	cmd := exec.Command("docker", "inspect", s.cfg.ImageName)
 	output, err := cmd.Output()
@@ -146,7 +146,7 @@ func (s *ImageSync) inspectLocalImage() (*ImageData, error) {
 }
 
 func (s *ImageSync) inspectRemoteImage(ctx context.Context) (*ImageData, error) {
-	output, err := s.client.RunCommandWithOutput(fmt.Sprintf("docker inspect %s", s.cfg.ImageName))
+	output, err := s.runner.RunCommandWithOutput(fmt.Sprintf("docker inspect %s", s.cfg.ImageName))
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (s *ImageSync) prepareDirectories(ctx context.Context) error {
 		return fmt.Errorf("failed to create local store: %w", err)
 	}
 
-	if _, err := s.client.RunCommand(ctx, fmt.Sprintf("mkdir -p %s", s.cfg.RemoteStore)); err != nil {
+	if _, err := s.runner.RunCommand(ctx, fmt.Sprintf("mkdir -p %s", s.cfg.RemoteStore)); err != nil {
 		return fmt.Errorf("failed to create remote store: %w", err)
 	}
 
@@ -328,7 +328,7 @@ func (s *ImageSync) loadRemoteImage(ctx context.Context) error {
 	cmd := fmt.Sprintf("cd %s && tar -cf - . | docker load",
 		filepath.Join(s.cfg.RemoteStore, normalizeImageName(s.cfg.ImageName)))
 
-	_, err := s.client.RunCommand(ctx, cmd)
+	_, err := s.runner.RunCommand(ctx, cmd)
 	return err
 }
 
@@ -382,7 +382,7 @@ func (s *ImageSync) listRemoteBlobs(ctx context.Context) ([]string, error) {
 	imageDir := normalizeImageName(s.cfg.ImageName)
 	blobPath := filepath.Join(s.cfg.RemoteStore, imageDir, "blobs", "sha256")
 
-	output, err := s.client.RunCommand(ctx, "ls", blobPath)
+	output, err := s.runner.RunCommand(ctx, "ls", blobPath)
 	if err != nil {
 		return nil, nil // Return empty list if directory doesn't exist
 	}
@@ -402,12 +402,12 @@ func (s *ImageSync) transferBlob(ctx context.Context, blob string) error {
 	localPath := filepath.Join(s.cfg.LocalStore, imageDir, "blobs", "sha256", blob)
 	remotePath := filepath.Join(s.cfg.RemoteStore, imageDir, "blobs", "sha256", blob)
 
-	_, err := s.client.RunCommand(ctx, "mkdir", "-p", filepath.Dir(remotePath))
+	_, err := s.runner.RunCommand(ctx, "mkdir", "-p", filepath.Dir(remotePath))
 	if err != nil {
 		return err
 	}
 
-	return s.client.CopyFile(ctx, localPath, remotePath)
+	return s.runner.CopyFile(ctx, localPath, remotePath)
 }
 
 // transferMetadata copies the image metadata files to the remote host.
@@ -422,12 +422,12 @@ func (s *ImageSync) transferMetadata(ctx context.Context) error {
 		localPath := filepath.Join(localDir, file)
 		remotePath := filepath.Join(remoteDir, file)
 
-		_, err := s.client.RunCommand(ctx, "mkdir", "-p", filepath.Dir(remotePath))
+		_, err := s.runner.RunCommand(ctx, "mkdir", "-p", filepath.Dir(remotePath))
 		if err != nil {
 			return err
 		}
 
-		if err := s.client.CopyFile(ctx, localPath, remotePath); err != nil {
+		if err := s.runner.CopyFile(ctx, localPath, remotePath); err != nil {
 			return err
 		}
 	}

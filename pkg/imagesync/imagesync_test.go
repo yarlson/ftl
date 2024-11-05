@@ -1,4 +1,4 @@
-package dockersync
+package imagesync
 
 import (
 	"context"
@@ -42,16 +42,16 @@ func TestImageSync(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = tc.Container.Terminate(context.Background()) }()
 
-	// Create SSH client
-	t.Log("Creating SSH client...")
+	// Create SSH runner
+	t.Log("Creating SSH runner...")
 	sshClient, err := remote.NewSSHClientWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
 	require.NoError(t, err)
 	defer sshClient.Close()
 
 	runner := remote.NewRunner(sshClient)
 
-	// Create Docker client
-	t.Log("Creating Docker client...")
+	// Create Docker runner
+	t.Log("Creating Docker runner...")
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
 	require.NoError(t, err)
 	defer dockerClient.Close()
