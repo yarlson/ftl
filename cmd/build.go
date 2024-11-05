@@ -30,13 +30,13 @@ func init() {
 func runBuild(cmd *cobra.Command, args []string) {
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
-		console.ErrPrintln("Failed to parse config file:", err)
+		console.Error("Failed to parse config file:", err)
 		return
 	}
 
 	skipPush, err := cmd.Flags().GetBool("skip-push")
 	if err != nil {
-		console.ErrPrintln("Failed to get skip-push flag:", err)
+		console.Error("Failed to get skip-push flag:", err)
 		return
 	}
 
@@ -46,7 +46,7 @@ func runBuild(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 
 	if err := buildAndPushServices(ctx, cfg.Services, builder, skipPush); err != nil {
-		console.ErrPrintln("Build process failed:", err)
+		console.Error("Build process failed:", err)
 		return
 	}
 }

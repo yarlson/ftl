@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/bramvdbogaerde/go-scp"
-	ssh2 "github.com/yarlson/ftl/pkg/ssh"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/bramvdbogaerde/go-scp"
+	ssh2 "github.com/yarlson/ftl/pkg/ssh"
+	"golang.org/x/crypto/ssh"
 )
 
 type Tunnel struct {

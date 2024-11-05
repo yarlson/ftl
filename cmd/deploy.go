@@ -3,9 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/yarlson/ftl/pkg/ssh"
 	"os"
 	"path/filepath"
+
+	"github.com/yarlson/ftl/pkg/ssh"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -33,12 +34,12 @@ func init() {
 func runDeploy(cmd *cobra.Command, args []string) {
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
-		console.ErrPrintln("Failed to parse config file:", err)
+		console.Error("Failed to parse config file:", err)
 		return
 	}
 
 	if err := deployToServers(cfg); err != nil {
-		console.ErrPrintln("Deployment failed:", err)
+		console.Error("Deployment failed:", err)
 		return
 	}
 }
@@ -110,7 +111,7 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 			if spinner != nil {
 				spinner.Fail(fmt.Sprintf("Deployment error: %s", event.Message))
 			} else {
-				console.ErrPrintln(fmt.Sprintf("Deployment error: %s", event.Message))
+				console.Error(fmt.Sprintf("Deployment error: %s", event.Message))
 			}
 			return fmt.Errorf("deployment error: %s", event.Message)
 		case deployment.EventTypeComplete:

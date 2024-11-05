@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/pem"
 	"fmt"
-	ssh2 "github.com/yarlson/ftl/pkg/ssh"
 	"io"
 	"net"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	ssh2 "github.com/yarlson/ftl/pkg/ssh"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/pkg/archive"

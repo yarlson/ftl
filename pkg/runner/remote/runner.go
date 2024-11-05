@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/bramvdbogaerde/go-scp"
-	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/bramvdbogaerde/go-scp"
+	"golang.org/x/crypto/ssh"
 )
 
 type Runner struct {

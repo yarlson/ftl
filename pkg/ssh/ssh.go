@@ -2,11 +2,12 @@ package ssh
 
 import (
 	"fmt"
-	"golang.org/x/crypto/ssh"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // NewSSHClientWithKey creates a new ssh.Client using a private key

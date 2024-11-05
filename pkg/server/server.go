@@ -3,11 +3,12 @@ package server
 import (
 	"context"
 	"fmt"
-	ssh2 "github.com/yarlson/ftl/pkg/ssh"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	ssh2 "github.com/yarlson/ftl/pkg/ssh"
 
 	"golang.org/x/crypto/ssh"
 

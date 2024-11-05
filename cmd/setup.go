@@ -29,32 +29,32 @@ func init() {
 func runSetup(cmd *cobra.Command, args []string) {
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
-		console.ErrPrintln("Failed to parse config file:", err)
+		console.Error("Failed to parse config file:", err)
 		return
 	}
 
 	dockerCreds, err := getDockerCredentials(cfg.Services)
 	if err != nil {
-		console.ErrPrintln("Failed to get Docker credentials:", err)
+		console.Error("Failed to get Docker credentials:", err)
 		return
 	}
 
 	newUserPassword, err := getUserPassword()
 	if err != nil {
-		console.ErrPrintln("Failed to read password:", err)
+		console.Error("Failed to read password:", err)
 		return
 	}
 
 	if dockerCreds.Username != "" && dockerCreds.Password != "" {
 		if err := server.DockerLogin(context.Background(), dockerCreds.Username, dockerCreds.Password); err != nil {
-			console.ErrPrintln("Failed to login to Docker Hub:", err)
+			console.Error("Failed to login to Docker Hub:", err)
 			return
 		}
 	}
 
 	for _, s := range cfg.Servers {
 		if err := setupServer(s, dockerCreds, newUserPassword); err != nil {
-			console.ErrPrintln(fmt.Sprintf("Failed to setup server %s:", s.Host), err)
+			console.Error(fmt.Sprintf("Failed to setup server %s:", s.Host), err)
 			continue
 		}
 		console.Success(fmt.Sprintf("Successfully set up server %s", s.Host))

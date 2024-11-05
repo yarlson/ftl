@@ -2,11 +2,12 @@ package imagesync
 
 import (
 	"context"
-	"github.com/yarlson/ftl/pkg/ssh"
-	"github.com/yarlson/ftl/tests"
 	"io"
 	"os"
 	"testing"
+
+	"github.com/yarlson/ftl/pkg/ssh"
+	"github.com/yarlson/ftl/tests"
 
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"

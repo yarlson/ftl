@@ -10,45 +10,60 @@ import (
 	"golang.org/x/term"
 )
 
-var (
-	Info = (&pterm.PrefixPrinter{
-		Prefix: pterm.Prefix{
-			Style: &pterm.ThemeDefault.InfoMessageStyle,
-			Text:  " ",
-		},
-	}).Println
+// Info prints an information message.
+func Info(a ...interface{}) {
+	infoPrinter.Println(a...)
+}
 
-	Success = (&pterm.PrefixPrinter{
-		Prefix: pterm.Prefix{
-			Style: &pterm.ThemeDefault.SuccessMessageStyle,
-			Text:  "√",
-		},
-	}).Println
+var infoPrinter = &pterm.PrefixPrinter{
+	Prefix: pterm.Prefix{
+		Style: &pterm.ThemeDefault.InfoMessageStyle,
+		Text:  " ",
+	},
+}
 
-	Warning = (&pterm.PrefixPrinter{
-		Prefix: pterm.Prefix{
-			Style: &pterm.ThemeDefault.WarningMessageStyle,
-			Text:  "!",
-		},
-	}).Println
+// Success prints a success message.
+func Success(a ...interface{}) {
+	successPrinter.Println(a...)
+}
 
-	ErrPrintln = (&pterm.PrefixPrinter{
-		Prefix: pterm.Prefix{
-			Style: &pterm.ThemeDefault.ErrorMessageStyle,
-			Text:  "✘",
-		},
-	}).Println
+var successPrinter = &pterm.PrefixPrinter{
+	Prefix: pterm.Prefix{
+		Style: &pterm.ThemeDefault.SuccessMessageStyle,
+		Text:  "√",
+	},
+}
 
-	ErrPrintf = (&pterm.PrefixPrinter{
-		Prefix: pterm.Prefix{
-			Style: &pterm.ThemeDefault.ErrorMessageStyle,
-			Text:  "✘",
-		},
-	}).Printf
+// Warning prints a warning message.
+func Warning(a ...interface{}) {
+	warningPrinter.Println(a...)
+}
 
-	Input = pterm.FgYellow.Print
-)
+var warningPrinter = &pterm.PrefixPrinter{
+	Prefix: pterm.Prefix{
+		Style: &pterm.ThemeDefault.WarningMessageStyle,
+		Text:  "!",
+	},
+}
 
+// Error prints an error message with a newline.
+func Error(a ...interface{}) {
+	errorPrinter.Println(a...)
+}
+
+var errorPrinter = &pterm.PrefixPrinter{
+	Prefix: pterm.Prefix{
+		Style: &pterm.ThemeDefault.ErrorMessageStyle,
+		Text:  "✘",
+	},
+}
+
+// Input prints an input prompt.
+func Input(a ...interface{}) {
+	pterm.FgYellow.Print(a...)
+}
+
+// ReadLine reads a line from standard input.
 func ReadLine() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	line, err := reader.ReadString('\n')
@@ -58,11 +73,14 @@ func ReadLine() (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
+// ReadPassword reads a password from standard input without echoing.
 func ReadPassword() (string, error) {
+	Input("Password: ")
 	password, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return "", err
 	}
+	Input("\n") // Move to the next line after input
 	return string(password), nil
 }
 
@@ -75,32 +93,12 @@ func NewSpinner(initialText string) *pterm.SpinnerPrinter {
 		TimerRoundingFactor: time.Second,
 		TimerStyle:          &pterm.ThemeDefault.TimerStyle,
 		MessageStyle:        pterm.NewStyle(pterm.FgYellow),
-		InfoPrinter: &pterm.PrefixPrinter{
-			Prefix: pterm.Prefix{
-				Style: &pterm.ThemeDefault.InfoMessageStyle,
-				Text:  " ",
-			},
-		},
-		SuccessPrinter: &pterm.PrefixPrinter{
-			Prefix: pterm.Prefix{
-				Style: &pterm.ThemeDefault.SuccessMessageStyle,
-				Text:  "√",
-			},
-		},
-		FailPrinter: &pterm.PrefixPrinter{
-			Prefix: pterm.Prefix{
-				Style: &pterm.ThemeDefault.ErrorMessageStyle,
-				Text:  "✘",
-			},
-		},
-		WarningPrinter: &pterm.PrefixPrinter{
-			Prefix: pterm.Prefix{
-				Style: &pterm.ThemeDefault.WarningMessageStyle,
-				Text:  "!",
-			},
-		},
+		InfoPrinter:         infoPrinter,
+		SuccessPrinter:      successPrinter,
+		FailPrinter:         errorPrinter,
+		WarningPrinter:      warningPrinter,
 	}
 
-	sp, _ := spinner.Start(initialText)
-	return sp
+	spinnerPrinter, _ := spinner.Start(initialText)
+	return spinnerPrinter
 }
