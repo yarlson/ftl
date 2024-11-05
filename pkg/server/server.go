@@ -12,14 +12,14 @@ import (
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
-	"github.com/yarlson/ftl/pkg/executor/local"
-	sshPkg "github.com/yarlson/ftl/pkg/executor/ssh"
+	"github.com/yarlson/ftl/pkg/runner/local"
+	sshPkg "github.com/yarlson/ftl/pkg/runner/ssh"
 )
 
 func DockerLogin(ctx context.Context, dockerUsername, dockerPassword string) error {
-	executor := local.NewExecutor()
+	runner := local.NewRunner()
 
-	if err := executor.RunCommands(ctx, []string{
+	if err := runner.RunCommands(ctx, []string{
 		fmt.Sprintf("docker login -u %s -p %s", dockerUsername, dockerPassword),
 	}); err != nil {
 		return fmt.Errorf("failed to configure docker hub: %w", err)
@@ -30,7 +30,7 @@ func DockerLogin(ctx context.Context, dockerUsername, dockerPassword string) err
 
 type Server struct {
 	config *config.Server
-	client *sshPkg.Client
+	client *sshPkg.Runner
 }
 
 func NewServer(config *config.Server) (*Server, error) {

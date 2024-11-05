@@ -9,13 +9,13 @@ import (
 	"strings"
 )
 
-type Executor struct{}
+type Runner struct{}
 
-func NewExecutor() *Executor {
-	return &Executor{}
+func NewRunner() *Runner {
+	return &Runner{}
 }
 
-func (e *Executor) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
+func (e *Runner) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
 	cmd := exec.CommandContext(ctx, command, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -24,7 +24,7 @@ func (e *Executor) RunCommand(ctx context.Context, command string, args ...strin
 	return bytes.NewReader(output), nil
 }
 
-func (e *Executor) RunCommands(ctx context.Context, commands []string) error {
+func (e *Runner) RunCommands(ctx context.Context, commands []string) error {
 	operations := make([]func() error, len(commands))
 	for i, cmdString := range commands {
 		command, args := splitCommandAndArgs(cmdString)

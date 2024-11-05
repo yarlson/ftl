@@ -9,7 +9,7 @@ import (
 
 	"github.com/yarlson/ftl/pkg/build"
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/executor/local"
+	"github.com/yarlson/ftl/pkg/runner/local"
 )
 
 // buildCmd represents the build command
@@ -40,8 +40,8 @@ func runBuild(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	executor := local.NewExecutor()
-	builder := build.NewBuild(executor)
+	runner := local.NewRunner()
+	builder := build.NewBuild(runner)
 
 	ctx := context.Background()
 

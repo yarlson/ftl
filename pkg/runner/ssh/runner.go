@@ -15,13 +15,13 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type Client struct {
+type Runner struct {
 	sshClient *ssh.Client
 	config    *ssh.ClientConfig
 	addr      string
 }
 
-func ConnectWithUser(host string, port int, user string, key []byte) (*Client, error) {
+func NewRunnerWithKey(host string, port int, user string, key []byte) (*Runner, error) {
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %v", err)
@@ -43,14 +43,14 @@ func ConnectWithUser(host string, port int, user string, key []byte) (*Client, e
 		return nil, fmt.Errorf("failed to connect: %v", err)
 	}
 
-	return &Client{
+	return &Runner{
 		sshClient: client,
 		config:    config,
 		addr:      addr,
 	}, nil
 }
 
-func ConnectWithUserPassword(host string, port string, user string, password string) (*Client, error) {
+func NewRunnerWithPassword(host string, port string, user string, password string) (*Runner, error) {
 	config := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
@@ -67,14 +67,14 @@ func ConnectWithUserPassword(host string, port string, user string, password str
 		return nil, fmt.Errorf("failed to connect: %v", err)
 	}
 
-	return &Client{
+	return &Runner{
 		sshClient: client,
 		config:    config,
 		addr:      addr,
 	}, nil
 }
 
-func (c *Client) ensureConnected() error {
+func (c *Runner) ensureConnected() error {
 	if c.sshClient != nil {
 		_, _, err := c.sshClient.SendRequest("keepalive@golang.org", true, nil)
 		if err == nil {
@@ -93,7 +93,7 @@ func (c *Client) ensureConnected() error {
 	return fmt.Errorf("failed to re-establish SSH connection after 3 attempts")
 }
 
-func (c *Client) Close() error {
+func (c *Runner) Close() error {
 	if c.sshClient == nil {
 		return nil
 	}
@@ -103,7 +103,7 @@ func (c *Client) Close() error {
 	return err
 }
 
-func (c *Client) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
+func (c *Runner) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
 	if err := c.ensureConnected(); err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (c *Client) RunCommand(ctx context.Context, command string, args ...string)
 	return bytes.NewReader(output.Bytes()), nil
 }
 
-func (c *Client) CopyFile(ctx context.Context, src, dst string) error {
+func (c *Runner) CopyFile(ctx context.Context, src, dst string) error {
 	if err := c.ensureConnected(); err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (c *Client) CopyFile(ctx context.Context, src, dst string) error {
 	return client.CopyFile(ctx, file, dst, "0644")
 }
 
-func (c *Client) RunCommands(ctx context.Context, commands []string) error {
+func (c *Runner) RunCommands(ctx context.Context, commands []string) error {
 	operations := make([]func() error, len(commands))
 	for i, command := range commands {
 		cmd := command // Create a new variable to avoid closure issues
@@ -198,7 +198,7 @@ func (c *Client) RunCommands(ctx context.Context, commands []string) error {
 	return nil
 }
 
-func (c *Client) runSingleCommand(ctx context.Context, command string) error {
+func (c *Runner) runSingleCommand(ctx context.Context, command string) error {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return fmt.Errorf("unable to create session: %w", err)
@@ -239,7 +239,7 @@ func (c *Client) runSingleCommand(ctx context.Context, command string) error {
 	}
 }
 
-func (c *Client) RunCommandOutput(command string) (string, error) {
+func (c *Runner) RunCommandOutput(command string) (string, error) {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return "", err
@@ -289,13 +289,13 @@ func FindSSHKey(keyPath string) ([]byte, error) {
 }
 
 // FindKeyAndConnectWithUser finds an SSH key and establishes a connection
-func FindKeyAndConnectWithUser(host string, port int, user, keyPath string) (*Client, []byte, error) {
+func FindKeyAndConnectWithUser(host string, port int, user, keyPath string) (*Runner, []byte, error) {
 	key, err := FindSSHKey(keyPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to find SSH key: %w", err)
 	}
 
-	client, err := ConnectWithUser(host, port, user, key)
+	client, err := NewRunnerWithKey(host, port, user, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to establish SSH connection: %w", err)
 	}
@@ -317,7 +317,7 @@ func getSSHDir() (string, error) {
 	return filepath.Join(home, ".ssh"), nil
 }
 
-func (c *Client) CreateTunnel(ctx context.Context, localPort, remotePort int) error {
+func (c *Runner) CreateTunnel(ctx context.Context, localPort, remotePort int) error {
 	if err := c.ensureConnected(); err != nil {
 		return fmt.Errorf("failed to ensure SSH connection: %w", err)
 	}

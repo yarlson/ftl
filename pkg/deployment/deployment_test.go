@@ -31,9 +31,9 @@ func TestDeploymentSuite(t *testing.T) {
 	suite.Run(t, new(DeploymentTestSuite))
 }
 
-type LocalExecutor struct{}
+type LocalRunner struct{}
 
-func (e *LocalExecutor) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
+func (e *LocalRunner) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
 	cmd := exec.CommandContext(ctx, command, args...)
 
 	var combinedOutput bytes.Buffer
@@ -47,7 +47,7 @@ func (e *LocalExecutor) RunCommand(ctx context.Context, command string, args ...
 	return bytes.NewReader(combinedOutput.Bytes()), nil
 }
 
-func (e *LocalExecutor) CopyFile(ctx context.Context, src, dst string) error {
+func (e *LocalRunner) CopyFile(ctx context.Context, src, dst string) error {
 	cmd := exec.CommandContext(ctx, "cp", src, dst)
 
 	return cmd.Run()
@@ -63,8 +63,8 @@ func (suite *DeploymentTestSuite) TearDownSuite() {
 }
 
 func (suite *DeploymentTestSuite) SetupTest() {
-	executor := &LocalExecutor{}
-	suite.updater = NewDeployment(executor)
+	runner := &LocalRunner{}
+	suite.updater = NewDeployment(runner)
 }
 
 func (suite *DeploymentTestSuite) removeContainer(containerName string) {

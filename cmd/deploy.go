@@ -12,7 +12,7 @@ import (
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/deployment"
-	"github.com/yarlson/ftl/pkg/executor/ssh"
+	"github.com/yarlson/ftl/pkg/runner/ssh"
 )
 
 // deployCmd represents the deploy command
@@ -70,13 +70,13 @@ func deployToServers(cfg *config.Config) error {
 func deployToServer(project string, cfg *config.Config, server config.Server) error {
 	console.Info(fmt.Sprintf("Deploying to server %s...", server.Host))
 
-	client, err := connectToServer(server)
+	runner, err := connectToServer(server)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %w", err)
 	}
-	defer client.Close()
+	defer runner.Close()
 
-	deploy := deployment.NewDeployment(client)
+	deploy := deployment.NewDeployment(runner)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -134,12 +134,12 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 	return nil
 }
 
-func connectToServer(server config.Server) (*ssh.Client, error) {
+func connectToServer(server config.Server) (*ssh.Runner, error) {
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
-	client, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
+	runner, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return client, nil
+	return runner, nil
 }

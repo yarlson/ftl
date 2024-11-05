@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/yarlson/ftl/pkg/executor/ssh"
+	"github.com/yarlson/ftl/pkg/runner/ssh"
 )
 
 // Config holds the configuration for the Docker image sync operation.
@@ -27,7 +27,7 @@ type Config struct {
 // ImageSync handles Docker image synchronization operations.
 type ImageSync struct {
 	cfg    Config
-	client *ssh.Client
+	client *ssh.Runner
 }
 
 // ImageData represents Docker image metadata.
@@ -62,7 +62,7 @@ type ImageData struct {
 }
 
 // NewImageSync creates a new ImageSync instance with the provided configuration and SSH client.
-func NewImageSync(cfg Config, client *ssh.Client) *ImageSync {
+func NewImageSync(cfg Config, client *ssh.Runner) *ImageSync {
 	if cfg.MaxParallel <= 0 {
 		cfg.MaxParallel = 4
 	}

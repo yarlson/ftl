@@ -19,7 +19,7 @@ const (
 	newContainerSuffix = "_new"
 )
 
-type Executor interface {
+type Runner interface {
 	RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error)
 	CopyFile(ctx context.Context, from, to string) error
 }
@@ -39,14 +39,12 @@ type Event struct {
 	Message string
 }
 
-type Iterator func(yield func(*Event, error) bool)
-
 type Deployment struct {
-	executor Executor
+	runner Runner
 }
 
-func NewDeployment(executor Executor) *Deployment {
-	return &Deployment{executor: executor}
+func NewDeployment(runner Runner) *Deployment {
+	return &Deployment{runner: runner}
 }
 
 func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Config) <-chan Event {
@@ -492,7 +490,7 @@ func (d *Deployment) pullImage(imageName string) (string, error) {
 }
 
 func (d *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
-	output, err := d.executor.RunCommand(ctx, command, args...)
+	output, err := d.runner.RunCommand(ctx, command, args...)
 	if err != nil {
 		return "", fmt.Errorf("failed to run command: %w", err)
 	}
@@ -559,7 +557,7 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 		return "", fmt.Errorf("failed to write nginx config to temporary file: %w", err)
 	}
 
-	return configPath, d.executor.CopyFile(context.Background(), tmpFile.Name(), filepath.Join(configPath, "default.conf"))
+	return configPath, d.runner.CopyFile(context.Background(), tmpFile.Name(), filepath.Join(configPath, "default.conf"))
 }
 
 func (d *Deployment) serviceChanged(project string, service *config.Service) (bool, error) {
@@ -876,7 +874,7 @@ func (d *Deployment) listRemoteFiles(ctx context.Context, remoteHost, remoteUser
 }
 
 func (d *Deployment) copyFileToRemote(ctx context.Context, remoteHost, remoteUser, localFile, remoteFile string) error {
-	return d.executor.CopyFile(ctx, localFile, fmt.Sprintf("%s@%s:%s", remoteUser, remoteHost, remoteFile))
+	return d.runner.CopyFile(ctx, localFile, fmt.Sprintf("%s@%s:%s", remoteUser, remoteHost, remoteFile))
 }
 
 func (d *Deployment) runRemoteCommand(ctx context.Context, remoteHost, remoteUser, command string) (string, error) {

@@ -66,7 +66,7 @@ func TestFindSSHKey(t *testing.T) {
 	assert.Nil(t, key)
 }
 
-func TestClient_CreateTunnel(t *testing.T) {
+func TestRunner_CreateTunnel(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -95,7 +95,7 @@ func TestClient_CreateTunnel(t *testing.T) {
 	key, err := os.ReadFile(privateKeyPath)
 	require.NoError(t, err)
 
-	client, err := ConnectWithUser("localhost", sshPort.Int(), "root", key)
+	client, err := NewRunnerWithKey("localhost", sshPort.Int(), "root", key)
 	require.NoError(t, err)
 	defer client.Close()
 

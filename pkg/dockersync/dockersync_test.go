@@ -10,7 +10,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/require"
-	"github.com/yarlson/ftl/pkg/executor/ssh"
+	"github.com/yarlson/ftl/pkg/runner/ssh"
 )
 
 const (
@@ -44,7 +44,7 @@ func TestImageSync(t *testing.T) {
 
 	// Create SSH client
 	t.Log("Creating SSH client...")
-	sshClient, err := ssh.ConnectWithUserPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
+	sshClient, err := ssh.NewRunnerWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
 	require.NoError(t, err)
 	defer sshClient.Close()
 
