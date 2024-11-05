@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/yarlson/ftl/pkg/ssh"
 	"os"
 	"path/filepath"
 
@@ -136,7 +137,7 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 
 func connectToServer(server config.Server) (*remote.Runner, error) {
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
-	sshClient, _, err := remote.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
+	sshClient, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
 	if err != nil {
 		return nil, err
 	}

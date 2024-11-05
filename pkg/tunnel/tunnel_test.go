@@ -1,4 +1,4 @@
-package remote
+package tunnel
 
 import (
 	"context"
@@ -100,7 +100,7 @@ func TestRunner_CreateTunnel(t *testing.T) {
 	require.NoError(t, err)
 	defer client.Close()
 
-	runner := NewRunner(client)
+	tunnel := NewTunnel(client)
 
 	// Test
 	localPort, remotePort := 23451, 80
@@ -109,7 +109,7 @@ func TestRunner_CreateTunnel(t *testing.T) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runner.CreateTunnel(tunnelCtx, localPort, remotePort)
+		errCh <- tunnel.CreateTunnel(tunnelCtx, localPort, remotePort)
 	}()
 
 	require.NoError(t, waitForPort(t, localPort, 5*time.Second))

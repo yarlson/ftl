@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	ssh2 "github.com/yarlson/ftl/pkg/ssh"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,7 +35,7 @@ type Server struct {
 }
 
 func NewServer(config *config.Server) (*Server, error) {
-	sshClient, rootKey, err := sshPkg.FindKeyAndConnectWithUser(config.Host, config.Port, "root", config.SSHKey)
+	sshClient, rootKey, err := ssh2.FindKeyAndConnectWithUser(config.Host, config.Port, "root", config.SSHKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find a suitable SSH key and connect to the server: %w", err)
 	}

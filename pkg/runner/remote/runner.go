@@ -5,12 +5,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/bramvdbogaerde/go-scp"
-	ssh2 "github.com/yarlson/ftl/pkg/ssh"
 	"golang.org/x/crypto/ssh"
 	"io"
-	"net"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -172,132 +169,4 @@ func (c *Runner) RunCommandWithOutput(command string) (string, error) {
 	}
 
 	return string(output), nil
-}
-
-// sshKeyPath is used only for testing purposes
-var sshKeyPath string
-
-// FindSSHKey looks for an SSH key in the given path or in default locations
-func FindSSHKey(keyPath string) ([]byte, error) {
-	if keyPath != "" {
-		if strings.HasPrefix(keyPath, "~") {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get home directory: %w", err)
-			}
-			keyPath = filepath.Join(home, keyPath[1:])
-		}
-
-		return os.ReadFile(keyPath)
-	}
-
-	sshDir, err := getSSHDir()
-	if err != nil {
-		return nil, err
-	}
-
-	keyNames := []string{"id_rsa", "id_ecdsa", "id_ed25519"}
-	for _, name := range keyNames {
-		path := filepath.Join(sshDir, name)
-		key, err := os.ReadFile(path)
-		if err == nil {
-			return key, nil
-		}
-	}
-
-	return nil, fmt.Errorf("no suitable SSH key found in %s", sshDir)
-}
-
-// FindKeyAndConnectWithUser finds an SSH key and establishes a connection
-func FindKeyAndConnectWithUser(host string, port int, user, keyPath string) (*ssh.Client, []byte, error) {
-	key, err := FindSSHKey(keyPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to find SSH key: %w", err)
-	}
-
-	client, err := ssh2.NewSSHClientWithKey(host, port, user, key)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to establish SSH connection: %w", err)
-	}
-
-	return client, key, nil
-}
-
-// getSSHDir returns the SSH directory path
-func getSSHDir() (string, error) {
-	if sshKeyPath != "" {
-		return sshKeyPath, nil
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	return filepath.Join(home, ".ssh"), nil
-}
-
-func (c *Runner) CreateTunnel(ctx context.Context, localPort, remotePort int) error {
-	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", localPort))
-	if err != nil {
-		return fmt.Errorf("failed to start local listener: %w", err)
-	}
-	defer listener.Close()
-
-	errChan := make(chan error, 1)
-
-	go func() {
-		for {
-			local, err := listener.Accept()
-			if err != nil {
-				if !strings.Contains(err.Error(), "use of closed network connection") {
-					errChan <- fmt.Errorf("failed to accept connection: %w", err)
-				}
-				return
-			}
-
-			go func(localConn net.Conn) {
-				defer localConn.Close()
-
-				remoteConn, err := c.sshClient.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", remotePort))
-				if err != nil {
-					fmt.Printf("Failed to connect to remote port: %v\n", err)
-					return
-				}
-				defer remoteConn.Close()
-
-				copyErrChan := make(chan error, 2)
-				doneChan := make(chan bool, 2)
-
-				go func() {
-					_, err := io.Copy(localConn, remoteConn)
-					copyErrChan <- err
-					doneChan <- true
-				}()
-
-				go func() {
-					_, err := io.Copy(remoteConn, localConn)
-					copyErrChan <- err
-					doneChan <- true
-				}()
-
-				select {
-				case err := <-copyErrChan:
-					if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-						fmt.Printf("Copy operation failed: %v\n", err)
-					}
-					<-doneChan
-				case <-ctx.Done():
-					return
-				}
-			}(local)
-		}
-	}()
-
-	select {
-	case err := <-errChan:
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
 }
