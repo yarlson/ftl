@@ -33,11 +33,10 @@ func NewLogger(runner deployment.Runner) *Logger {
 }
 
 // FetchLogs fetches and optionally streams logs from the specified services.
-func (l *Logger) FetchLogs(ctx context.Context, project string, services []string, follow bool) error {
+func (l *Logger) FetchLogs(ctx context.Context, project string, services []string, follow bool, tail int) error {
 	var wg sync.WaitGroup
 	serviceColorMap := make(map[string]pterm.Color)
 
-	// Assign colors to services
 	for i, service := range services {
 		color := serviceColors[i%len(serviceColors)]
 		serviceColorMap[service] = color
@@ -50,7 +49,6 @@ func (l *Logger) FetchLogs(ctx context.Context, project string, services []strin
 
 			containerName := svc
 
-			// Check if the container exists
 			exists, err := l.containerExists(ctx, containerName)
 			if err != nil {
 				console.Error(fmt.Sprintf("Failed to check if service %s exists: %v", svc, err))
@@ -61,14 +59,15 @@ func (l *Logger) FetchLogs(ctx context.Context, project string, services []strin
 				return
 			}
 
-			// Prepare the command arguments
 			cmdArgs := []string{"logs"}
+			if tail >= 0 {
+				cmdArgs = append(cmdArgs, fmt.Sprintf("--tail=%d", tail))
+			}
 			if follow {
 				cmdArgs = append(cmdArgs, "-f")
 			}
 			cmdArgs = append(cmdArgs, containerName)
 
-			// Run the docker logs command
 			reader, err := l.runner.RunCommand(ctx, "docker", cmdArgs...)
 			if err != nil {
 				console.Error(fmt.Sprintf("Failed to fetch logs for service %s: %v", svc, err))
@@ -76,7 +75,6 @@ func (l *Logger) FetchLogs(ctx context.Context, project string, services []strin
 			}
 			defer reader.Close()
 
-			// Prepare the prefix and color
 			prefix := fmt.Sprintf("[%s]", svc)
 			color := serviceColorMap[svc]
 			prefixStyle := pterm.NewStyle(color)

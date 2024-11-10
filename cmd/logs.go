@@ -11,7 +11,10 @@ import (
 	"github.com/yarlson/ftl/pkg/logs"
 )
 
-var follow bool
+var (
+	follow bool
+	tail   int
+)
 
 // logsCmd represents the logs command
 var logsCmd = &cobra.Command{
@@ -27,6 +30,7 @@ Use the -f flag to stream logs in real-time.`,
 func init() {
 	rootCmd.AddCommand(logsCmd)
 	logsCmd.Flags().BoolVarP(&follow, "follow", "f", false, "Stream logs in real-time")
+	logsCmd.Flags().IntVarP(&tail, "tail", "n", -1, "Number of lines to show from the end of the logs")
 }
 
 func runLogs(cmd *cobra.Command, args []string) {
@@ -35,19 +39,23 @@ func runLogs(cmd *cobra.Command, args []string) {
 		serviceName = args[0]
 	}
 
+	if follow && !cmd.Flags().Lookup("tail").Changed {
+		tail = 100
+	}
+
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
 		console.Error("Failed to parse config file:", err)
 		return
 	}
 
-	if err := getLogsFromServers(cfg, serviceName, follow); err != nil {
+	if err := getLogsFromServers(cfg, serviceName, follow, tail); err != nil {
 		console.Error("Failed to fetch logs:", err)
 		return
 	}
 }
 
-func getLogsFromServers(cfg *config.Config, serviceName string, follow bool) error {
+func getLogsFromServers(cfg *config.Config, serviceName string, follow bool, tail int) error {
 	services := []string{}
 
 	if serviceName != "" {
@@ -72,7 +80,7 @@ func getLogsFromServers(cfg *config.Config, serviceName string, follow bool) err
 		logger := logs.NewLogger(runner)
 
 		ctx := context.Background()
-		err = logger.FetchLogs(ctx, cfg.Project.Name, services, follow)
+		err = logger.FetchLogs(ctx, cfg.Project.Name, services, follow, tail)
 
 		if err != nil {
 			console.Error(fmt.Sprintf("Failed to fetch logs from server %s: %v", server.Host, err))
