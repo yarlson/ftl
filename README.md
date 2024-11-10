@@ -4,7 +4,7 @@
 </p>
 <p>&nbsp;</p>
 
-# FTL: faster than light deployment
+# FTL: Faster Than Light Deployment
 
 FTL is a deployment tool that reduces complexity for projects that don't require extensive orchestration infrastructure. It provides automated deployment to cloud providers like Hetzner, DigitalOcean, Linode, and custom servers without the overhead of CI/CD pipelines or container orchestration platforms.
 
@@ -16,32 +16,35 @@ FTL is a deployment tool that reduces complexity for projects that don't require
 - Docker-based deployment with built-in health checks
 - Integrated Nginx reverse proxy
 - Multi-provider support (Hetzner, DigitalOcean, Linode, custom servers)
+- Fetch and stream logs from deployed services
 
 ## Installation
 
-1. Via Homebrew (macOS and Linux)
+1. **Via Homebrew (macOS and Linux)**
 
-```bash
-brew tap yarlson/ftl
-brew install ftl
-```
+   ```bash
+   brew tap yarlson/ftl
+   brew install ftl
+   ```
 
-2. Download from GitHub releases
+2. **Download from GitHub releases**
 
-```bash
-curl -L https://github.com/yarlson/ftl/releases/latest/download/ftl_$(uname -s)_$(uname -m).tar.gz | tar xz
-sudo mv ftl /usr/local/bin/
-```
+   ```bash
+   curl -L https://github.com/yarlson/ftl/releases/latest/download/ftl_$(uname -s)_$(uname -m).tar.gz | tar xz
+   sudo mv ftl /usr/local/bin/
+   ```
 
-3. Or build from source
+3. **Build from source**
 
-```bash
-go install github.com/yarlson/ftl@latest
-```
+   ```bash
+   go install github.com/yarlson/ftl@latest
+   ```
 
 ## Usage
 
-1. Create configuration file:
+### 1. Create Configuration File
+
+Create an `ftl.yaml` configuration file in your project directory:
 
 ```yaml
 project:
@@ -84,24 +87,78 @@ volumes:
 
 Environment variables in the configuration can be:
 
-- Required: `${VAR_NAME}` - Must be set in the environment
-- Optional with default: `${VAR_NAME:-default_value}` - Uses default if not set
+- **Required**: `${VAR_NAME}` - Must be set in the environment
+- **Optional with default**: `${VAR_NAME:-default_value}` - Uses default if not set
 
-2. Initialize server:
+### 2. Initialize Server
+
+Set up your server with the required dependencies:
 
 ```bash
 ftl setup
 ```
 
-3. Deploy application:
+This command will:
+
+- Install Docker and other necessary packages on your server
+- Configure firewall rules
+- Set up user permissions
+- Initialize Docker networks
+
+### 3. Deploy Application
+
+Deploy your application to the configured servers:
 
 ```bash
 ftl deploy
 ```
 
+This command will:
+
+- Connect to your servers via SSH
+- Pull Docker images specified in your configuration
+- Start new containers with health checks
+- Configure the Nginx reverse proxy
+- Manage SSL/TLS certificates via ACME
+- Perform zero-downtime container replacement
+- Clean up unused resources
+
+### 4. Fetch Logs
+
+Retrieve logs from your deployed services:
+
+```bash
+ftl logs [service] [flags]
+```
+
+- **service**: (Optional) Name of the service to fetch logs from. If omitted, logs from all services are fetched.
+- **flags**:
+  - `-f`, `--follow`: Stream logs in real-time.
+  - `-n`, `--tail`: Number of lines to show from the end of the logs.
+
+#### Examples
+
+- Fetch logs from all services:
+
+  ```bash
+  ftl logs
+  ```
+
+- Stream logs from a specific service:
+
+  ```bash
+  ftl logs my-app -f
+  ```
+
+- Fetch the last 50 lines of logs from all services:
+
+  ```bash
+  ftl logs -n 50
+  ```
+
 ## How It Works
 
-FTL manages deployments through these main components:
+FTL manages deployments and log retrieval through these main components:
 
 ### Server Setup (`ftl setup`)
 
@@ -119,6 +176,12 @@ FTL manages deployments through these main components:
 5. Manages SSL/TLS certificates via ACME
 6. Performs zero-downtime container replacement
 7. Cleans up unused resources
+
+### Logs Retrieval (`ftl logs`)
+
+- Fetches logs from specified services
+- Supports real-time streaming with the `-f` flag
+- Allows limiting the number of log lines with the `-n` flag
 
 ## Use Cases
 
@@ -157,7 +220,7 @@ services:
   - name: string # Service identifier (required)
     image: string # Docker image (required)
     port: int # Container port (required, 1-65535)
-    path: string # Service path (default: "./" )
+    path: string # Service path (default: "./")
     command: string # Override container command
     entrypoint: [string] # Override container entrypoint
     health_check:
@@ -169,13 +232,15 @@ services:
       - path: string # Route path prefix (required)
         strip_prefix: bool # Strip prefix from requests
     volumes: [string] # Volume mappings (format: "volume:path")
+    env: # Environment variables
+      - KEY=value
 
 dependencies:
   - name: string # Dependency name (required)
     image: string # Docker image (required)
     volumes: [string] # Volume mappings (format: "volume:path")
     env: # Environment variables
-      KEY: value
+      - KEY=value
 
 volumes: [string] # Named volumes list
 ```
@@ -184,22 +249,23 @@ volumes: [string] # Named volumes list
 
 FTL supports two forms of environment variable substitution in the configuration:
 
-1. Required variables: `${VAR_NAME}`
+1. **Required Variables**: `${VAR_NAME}`
 
    - Must be present in the environment
    - Deployment fails if variable is not set
 
-2. Variables with defaults: `${VAR_NAME:-default_value}`
+2. **Variables with Defaults**: `${VAR_NAME:-default_value}`
+
    - Uses the environment variable if set
    - Falls back to the default value if not set
 
 ### Advanced Options
 
-- Custom health check configurations
-- Volume management
-- Environment variable handling
-- Service dependencies
-- Custom routing rules
+- **Health Checks**: Customize health check endpoints, intervals, timeouts, and retries for each service.
+- **Volume Management**: Define named volumes for persistent data storage.
+- **Environment Variables**: Set environment variables for services and dependencies, with support for environment variable substitution.
+- **Service Dependencies**: Specify dependent services and their configurations.
+- **Routing Rules**: Define custom routing paths and whether to strip prefixes.
 
 ## Development
 
@@ -219,9 +285,9 @@ go test ./...
 
 Contributions are welcome. Please ensure:
 
-- Code follows project style
-- Tests pass and new tests are added
-- Documentation is updated
+- Code follows project style guidelines
+- Tests pass and new tests are added for new features
+- Documentation is updated accordingly
 
 ## License
 

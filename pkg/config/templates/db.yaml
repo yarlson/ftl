@@ -28,7 +28,17 @@ services:
     ports:
       - "3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "$$MYSQL_USER", "--password=$$MYSQL_PASSWORD"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "$$MYSQL_USER",
+          "--password=$$MYSQL_PASSWORD",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -45,7 +55,17 @@ services:
     ports:
       - "3307:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "$$MARIADB_USER", "--password=$$MARIADB_PASSWORD"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "$$MARIADB_USER",
+          "--password=$$MARIADB_PASSWORD",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -62,9 +82,9 @@ services:
     volumes:
       - cassandra-data:/var/lib/cassandra
     ports:
-      - "9042:9042"   # CQL
-      - "7000:7000"   # Internode communication
-      - "7199:7199"   # JMX
+      - "9042:9042" # CQL
+      - "7000:7000" # Internode communication
+      - "7199:7199" # JMX
     healthcheck:
       test: ["CMD-SHELL", "nodetool status | grep UN"]
       interval: 30s
