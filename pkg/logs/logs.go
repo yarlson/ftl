@@ -5,10 +5,22 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
+
+	"github.com/pterm/pterm"
 
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/deployment"
 )
+
+var serviceColors = []pterm.Color{
+	pterm.FgLightBlue,
+	pterm.FgLightGreen,
+	pterm.FgLightCyan,
+	pterm.FgLightMagenta,
+	pterm.FgLightYellow,
+	pterm.FgLightRed,
+}
 
 // Logger provides methods to fetch logs from remote services.
 type Logger struct {
@@ -20,64 +32,69 @@ func NewLogger(runner deployment.Runner) *Logger {
 	return &Logger{runner: runner}
 }
 
-// FetchLogs fetches and prints logs from the specified service.
-func (l *Logger) FetchLogs(ctx context.Context, project, service string) error {
-	containerName := service
+// FetchLogs fetches and optionally streams logs from the specified services.
+func (l *Logger) FetchLogs(ctx context.Context, project string, services []string, follow bool) error {
+	var wg sync.WaitGroup
+	serviceColorMap := make(map[string]pterm.Color)
 
-	// Check if the container exists
-	exists, err := l.containerExists(ctx, containerName)
-	if err != nil {
-		return fmt.Errorf("failed to check if container exists: %w", err)
-	}
-	if !exists {
-		return fmt.Errorf("service %s is not running on the server", service)
+	// Assign colors to services
+	for i, service := range services {
+		color := serviceColors[i%len(serviceColors)]
+		serviceColorMap[service] = color
 	}
 
-	// Run the docker logs command
-	reader, err := l.runner.RunCommand(ctx, "docker", "logs", containerName)
-	if err != nil {
-		return fmt.Errorf("failed to fetch logs: %w", err)
+	for _, service := range services {
+		wg.Add(1)
+		go func(svc string) {
+			defer wg.Done()
+
+			containerName := svc
+
+			// Check if the container exists
+			exists, err := l.containerExists(ctx, containerName)
+			if err != nil {
+				console.Error(fmt.Sprintf("Failed to check if service %s exists: %v", svc, err))
+				return
+			}
+			if !exists {
+				console.Warning(fmt.Sprintf("Service %s is not running on the server", svc))
+				return
+			}
+
+			// Prepare the command arguments
+			cmdArgs := []string{"logs"}
+			if follow {
+				cmdArgs = append(cmdArgs, "-f")
+			}
+			cmdArgs = append(cmdArgs, containerName)
+
+			// Run the docker logs command
+			reader, err := l.runner.RunCommand(ctx, "docker", cmdArgs...)
+			if err != nil {
+				console.Error(fmt.Sprintf("Failed to fetch logs for service %s: %v", svc, err))
+				return
+			}
+			defer reader.Close()
+
+			// Prepare the prefix and color
+			prefix := fmt.Sprintf("[%s]", svc)
+			color := serviceColorMap[svc]
+			prefixStyle := pterm.NewStyle(color)
+			messageStyle := pterm.NewStyle(pterm.FgDefault)
+
+			scanner := bufio.NewScanner(reader)
+			for scanner.Scan() {
+				line := scanner.Text()
+				formattedLine := fmt.Sprintf("%s %s", prefixStyle.Sprint(prefix), messageStyle.Sprint(line))
+				console.Print(formattedLine)
+			}
+			if err := scanner.Err(); err != nil && err != io.EOF {
+				console.Error(fmt.Sprintf("Error reading logs for service %s: %v", svc, err))
+			}
+		}(service)
 	}
 
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		console.Info(scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading logs: %w", err)
-	}
-
-	return nil
-}
-
-// StreamLogs streams logs from the specified service in real-time.
-func (l *Logger) StreamLogs(ctx context.Context, project, service string) error {
-	containerName := service
-
-	// Check if the container exists
-	exists, err := l.containerExists(ctx, containerName)
-	if err != nil {
-		return fmt.Errorf("failed to check if container exists: %w", err)
-	}
-	if !exists {
-		return fmt.Errorf("service %s is not running on the server", service)
-	}
-
-	// Run the docker logs -f command
-	reader, err := l.runner.RunCommand(ctx, "docker", "logs", "-f", containerName)
-	if err != nil {
-		return fmt.Errorf("failed to stream logs: %w", err)
-	}
-
-	// Stream the logs in real-time
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		console.Info(scanner.Text())
-	}
-	if err := scanner.Err(); err != nil && err != io.EOF {
-		return fmt.Errorf("error streaming logs: %w", err)
-	}
-
+	wg.Wait()
 	return nil
 }
 

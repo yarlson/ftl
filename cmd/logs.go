@@ -18,8 +18,9 @@ var logsCmd = &cobra.Command{
 	Use:   "logs [service]",
 	Short: "Fetch logs from remote deployments",
 	Long: `Fetch logs from the specified service running on remote servers.
+If no service is specified, logs from all services will be fetched.
 Use the -f flag to stream logs in real-time.`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	Run:  runLogs,
 }
 
@@ -29,7 +30,10 @@ func init() {
 }
 
 func runLogs(cmd *cobra.Command, args []string) {
-	serviceName := args[0]
+	var serviceName string
+	if len(args) > 0 {
+		serviceName = args[0]
+	}
 
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
@@ -44,6 +48,17 @@ func runLogs(cmd *cobra.Command, args []string) {
 }
 
 func getLogsFromServers(cfg *config.Config, serviceName string, follow bool) error {
+	services := []string{}
+
+	if serviceName != "" {
+		services = append(services, serviceName)
+	} else {
+		// Collect all service names from the config
+		for _, service := range cfg.Services {
+			services = append(services, service.Name)
+		}
+	}
+
 	for _, server := range cfg.Servers {
 		console.Info(fmt.Sprintf("Fetching logs from server %s...", server.Host))
 
@@ -57,11 +72,7 @@ func getLogsFromServers(cfg *config.Config, serviceName string, follow bool) err
 		logger := logs.NewLogger(runner)
 
 		ctx := context.Background()
-		if follow {
-			err = logger.StreamLogs(ctx, cfg.Project.Name, serviceName)
-		} else {
-			err = logger.FetchLogs(ctx, cfg.Project.Name, serviceName)
-		}
+		err = logger.FetchLogs(ctx, cfg.Project.Name, services, follow)
 
 		if err != nil {
 			console.Error(fmt.Sprintf("Failed to fetch logs from server %s: %v", server.Host, err))

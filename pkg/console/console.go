@@ -2,6 +2,7 @@ package console
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -101,4 +102,8 @@ func NewSpinner(initialText string) *pterm.SpinnerPrinter {
 
 	spinnerPrinter, _ := spinner.Start(initialText)
 	return spinnerPrinter
+}
+
+func Print(a ...interface{}) {
+	fmt.Println(a...)
 }
