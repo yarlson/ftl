@@ -49,7 +49,7 @@ func (suite *DeploymentTestSuite) SetupTest() {
 }
 
 func (suite *DeploymentTestSuite) TearDownTest() {
-	suite.tc.Container.Terminate(context.Background())
+	_ = suite.tc.Container.Terminate(context.Background())
 }
 
 func (suite *DeploymentTestSuite) removeContainer(containerName string) {

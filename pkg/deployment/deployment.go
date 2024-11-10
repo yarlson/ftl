@@ -20,7 +20,7 @@ const (
 )
 
 type Runner interface {
-	RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error)
+	RunCommand(ctx context.Context, command string, args ...string) (io.ReadCloser, error)
 	CopyFile(ctx context.Context, from, to string) error
 }
 

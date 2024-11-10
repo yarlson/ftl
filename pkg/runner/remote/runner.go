@@ -1,7 +1,6 @@
 package remote
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -32,65 +31,85 @@ func (c *Runner) Close() error {
 	return err
 }
 
-func (c *Runner) RunCommand(ctx context.Context, command string, args ...string) (io.Reader, error) {
+func (c *Runner) RunCommand(ctx context.Context, command string, args ...string) (io.ReadCloser, error) {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("unable to create session: %v", err)
 	}
-	defer session.Close()
+	// Do not defer session.Close() here; we'll handle it in the ReadCloser.
 
+	// Build the full command string
 	fullCommand := command
 	if len(args) > 0 {
-		var quotedArgs []string
-		for _, arg := range args {
-			quotedArgs = append(quotedArgs, fmt.Sprintf("%q", arg))
+		// Properly escape and join the arguments
+		escapedArgs := make([]string, len(args))
+		for i, arg := range args {
+			escapedArgs[i] = sshEscapeArg(arg)
 		}
-		fullCommand += " " + strings.Join(quotedArgs, " ")
-		fullCommand = strings.Replace(fullCommand, "\\n", "\n", -1)
+		fullCommand += " " + strings.Join(escapedArgs, " ")
 	}
 
-	pr, pw := io.Pipe()
+	// Set up pipes for stdout and stderr
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		session.Close()
+		return nil, fmt.Errorf("failed to get stdout pipe: %w", err)
+	}
 
-	session.Stdout = pw
-	session.Stderr = pw
+	stderr, err := session.StderrPipe()
+	if err != nil {
+		session.Close()
+		return nil, fmt.Errorf("failed to get stderr pipe: %w", err)
+	}
 
+	// Start the command
 	if err := session.Start(fullCommand); err != nil {
-		_ = pw.Close()
+		session.Close()
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	done := make(chan error, 1)
-	go func() {
-		done <- session.Wait()
-		_ = pw.Close()
-	}()
+	// Combine stdout and stderr into a single reader
+	outputReader := io.MultiReader(stdout, stderr)
 
-	var output bytes.Buffer
-	outputChan := make(chan struct{})
+	// Create a ReadCloser that wraps the outputReader and closes the session when done
+	readCloser := &sessionReadCloser{
+		Reader:  outputReader,
+		session: session,
+		ctx:     ctx,
+	}
 
-	go func() {
-		_, _ = io.Copy(&output, pr)
-		close(outputChan)
-	}()
+	return readCloser, nil
+}
 
-	var commandErr error
-	select {
-	case <-ctx.Done():
-		_ = session.Signal(ssh.SIGTERM)
-		commandErr = ctx.Err()
-	case err := <-done:
-		if err != nil {
-			commandErr = fmt.Errorf("command failed: %w", err)
+// sshEscapeArg properly escapes a command-line argument for SSH
+func sshEscapeArg(arg string) string {
+	return "'" + strings.Replace(arg, "'", "'\\''", -1) + "'"
+}
+
+// sessionReadCloser wraps an io.Reader and closes the SSH session when closed
+type sessionReadCloser struct {
+	io.Reader
+	session *ssh.Session
+	ctx     context.Context
+}
+
+func (src *sessionReadCloser) Close() error {
+	// Signal the session to terminate the command
+	if err := src.session.Signal(ssh.SIGTERM); err != nil {
+		// If signaling fails, forcibly close the session
+		src.session.Close()
+	}
+
+	// Wait for the command to finish
+	if err := src.session.Wait(); err != nil {
+		if _, ok := err.(*ssh.ExitMissingError); !ok {
+			// Ignore ExitMissingError which can occur if the session is closed prematurely
+			return err
 		}
 	}
 
-	<-outputChan
-
-	if commandErr != nil {
-		return bytes.NewReader(output.Bytes()), commandErr
-	}
-
-	return bytes.NewReader(output.Bytes()), nil
+	// Close the session
+	return src.session.Close()
 }
 
 func (c *Runner) CopyFile(ctx context.Context, src, dst string) error {
