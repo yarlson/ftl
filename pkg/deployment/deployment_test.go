@@ -35,14 +35,18 @@ func TestDeploymentSuite(t *testing.T) {
 }
 
 func (suite *DeploymentTestSuite) SetupTest() {
+	suite.T().Log("Setting up test environment...")
 	tc, err := dockercontainer.NewContainer(suite.T())
 	suite.Require().NoError(err)
 
 	suite.network = "ftl-test-network"
 	suite.tc = tc
+
+	suite.T().Log("Creating SSH client...")
 	sshClient, err := ssh.NewSSHClientWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
 	suite.Require().NoError(err)
 
+	suite.T().Log("Creating runner...")
 	runner := remote.NewRunner(sshClient)
 	suite.runner = runner
 	suite.deployment = NewDeployment(runner, nil)
