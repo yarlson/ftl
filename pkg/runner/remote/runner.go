@@ -35,6 +35,24 @@ func (c *Runner) Close() error {
 	return err
 }
 
+// RunCommands runs multiple commands on the remote host.
+func (c *Runner) RunCommands(ctx context.Context, commands []string) error {
+	for _, command := range commands {
+		rc, err := c.RunCommand(ctx, command)
+		if err != nil {
+			return fmt.Errorf("failed to run command '%s': %w", command, err)
+		}
+
+		_, readErr := io.ReadAll(rc)
+
+		if readErr != nil {
+			return fmt.Errorf("failed to read output of command '%s': %w", command, readErr)
+		}
+	}
+
+	return nil
+}
+
 // RunCommand runs a command on the remote host.
 func (c *Runner) RunCommand(ctx context.Context, command string, args ...string) (io.ReadCloser, error) {
 	session, err := c.sshClient.NewSession()
@@ -120,38 +138,4 @@ func (c *Runner) CopyFile(ctx context.Context, src, dst string) error {
 	}
 
 	return client.CopyFile(ctx, file, dst, "0644")
-}
-
-// RunCommands runs multiple commands on the remote host.
-func (c *Runner) RunCommands(ctx context.Context, commands []string) error {
-	for _, command := range commands {
-		rc, err := c.RunCommand(ctx, command)
-		if err != nil {
-			return fmt.Errorf("failed to run command '%s': %w", command, err)
-		}
-
-		_, readErr := io.ReadAll(rc)
-
-		if readErr != nil {
-			return fmt.Errorf("failed to read output of command '%s': %w", command, readErr)
-		}
-	}
-
-	return nil
-}
-
-// RunCommandWithOutput runs a command on the remote host and returns its output.
-func (c *Runner) RunCommandWithOutput(command string) (string, error) {
-	session, err := c.sshClient.NewSession()
-	if err != nil {
-		return "", err
-	}
-	defer session.Close()
-
-	output, err := session.CombinedOutput(command)
-	if err != nil {
-		return "", fmt.Errorf("command failed: %v\nOutput: %s", err, string(output))
-	}
-
-	return string(output), nil
 }

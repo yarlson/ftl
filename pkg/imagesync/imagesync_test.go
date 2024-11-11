@@ -89,7 +89,11 @@ func TestImageSync(t *testing.T) {
 
 	// Verify image exists on remote
 	t.Log("Verifying image exists on remote...")
-	output, err := runner.RunCommandWithOutput("docker images --format '{{.Repository}}:{{.Tag}}'")
+	outputReader, err := runner.RunCommand(ctx, "docker", "images", "--format", "{{.Repository}}:{{.Tag}}")
+	require.NoError(t, err)
+	defer outputReader.Close()
+
+	output, err := io.ReadAll(outputReader)
 	require.NoError(t, err)
 	require.Contains(t, output, testImage)
 

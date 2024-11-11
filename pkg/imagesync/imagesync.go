@@ -146,9 +146,15 @@ func (s *ImageSync) inspectLocalImage() (*ImageData, error) {
 }
 
 func (s *ImageSync) inspectRemoteImage(ctx context.Context) (*ImageData, error) {
-	output, err := s.runner.RunCommandWithOutput(fmt.Sprintf("docker inspect %s", s.cfg.ImageName))
+	outputReader, err := s.runner.RunCommand(ctx, "docker", "inspect", s.cfg.ImageName)
 	if err != nil {
 		return nil, err
+	}
+	defer outputReader.Close()
+
+	output, err := io.ReadAll(outputReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read remote inspect data: %w", err)
 	}
 
 	var data []ImageData
