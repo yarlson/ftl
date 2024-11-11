@@ -2,6 +2,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,16 +12,19 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// Runner provides methods to run commands and copy files on a remote host.
 type Runner struct {
 	sshClient *ssh.Client
 }
 
+// NewRunner creates a new Runner instance.
 func NewRunner(sshClient *ssh.Client) *Runner {
 	return &Runner{
 		sshClient: sshClient,
 	}
 }
 
+// Close closes the SSH client.
 func (c *Runner) Close() error {
 	if c.sshClient == nil {
 		return nil
@@ -31,17 +35,15 @@ func (c *Runner) Close() error {
 	return err
 }
 
+// RunCommand runs a command on the remote host.
 func (c *Runner) RunCommand(ctx context.Context, command string, args ...string) (io.ReadCloser, error) {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("unable to create session: %v", err)
 	}
-	// Do not defer session.Close() here; we'll handle it in the ReadCloser.
 
-	// Build the full command string
 	fullCommand := command
 	if len(args) > 0 {
-		// Properly escape and join the arguments
 		escapedArgs := make([]string, len(args))
 		for i, arg := range args {
 			escapedArgs[i] = sshEscapeArg(arg)
@@ -49,7 +51,6 @@ func (c *Runner) RunCommand(ctx context.Context, command string, args ...string)
 		fullCommand += " " + strings.Join(escapedArgs, " ")
 	}
 
-	// Set up pipes for stdout and stderr
 	stdout, err := session.StdoutPipe()
 	if err != nil {
 		session.Close()
@@ -62,16 +63,13 @@ func (c *Runner) RunCommand(ctx context.Context, command string, args ...string)
 		return nil, fmt.Errorf("failed to get stderr pipe: %w", err)
 	}
 
-	// Start the command
 	if err := session.Start(fullCommand); err != nil {
 		session.Close()
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	// Combine stdout and stderr into a single reader
 	outputReader := io.MultiReader(stdout, stderr)
 
-	// Create a ReadCloser that wraps the outputReader and closes the session when done
 	readCloser := &sessionReadCloser{
 		Reader:  outputReader,
 		session: session,
@@ -93,25 +91,23 @@ type sessionReadCloser struct {
 	ctx     context.Context
 }
 
+// Close closes the SSH session and waits for the command to finish.
 func (src *sessionReadCloser) Close() error {
-	// Signal the session to terminate the command
 	if err := src.session.Signal(ssh.SIGTERM); err != nil {
-		// If signaling fails, forcibly close the session
 		src.session.Close()
 	}
 
-	// Wait for the command to finish
 	if err := src.session.Wait(); err != nil {
-		if _, ok := err.(*ssh.ExitMissingError); !ok {
-			// Ignore ExitMissingError which can occur if the session is closed prematurely
+		var exitMissingError *ssh.ExitMissingError
+		if !errors.As(err, &exitMissingError) {
 			return err
 		}
 	}
 
-	// Close the session
 	return src.session.Close()
 }
 
+// CopyFile copies a file from the remote host to the local machine.
 func (c *Runner) CopyFile(ctx context.Context, src, dst string) error {
 	client, err := scp.NewClientBySSH(c.sshClient)
 	if err != nil {
@@ -126,56 +122,25 @@ func (c *Runner) CopyFile(ctx context.Context, src, dst string) error {
 	return client.CopyFile(ctx, file, dst, "0644")
 }
 
+// RunCommands runs multiple commands on the remote host.
 func (c *Runner) RunCommands(ctx context.Context, commands []string) error {
 	for _, command := range commands {
-		if err := c.runSingleCommand(ctx, command); err != nil {
-			return err
+		rc, err := c.RunCommand(ctx, command)
+		if err != nil {
+			return fmt.Errorf("failed to run command '%s': %w", command, err)
+		}
+
+		_, readErr := io.ReadAll(rc)
+
+		if readErr != nil {
+			return fmt.Errorf("failed to read output of command '%s': %w", command, readErr)
 		}
 	}
+
 	return nil
 }
 
-func (c *Runner) runSingleCommand(ctx context.Context, command string) error {
-	session, err := c.sshClient.NewSession()
-	if err != nil {
-		return fmt.Errorf("unable to create session: %w", err)
-	}
-	defer session.Close()
-
-	pr, pw := io.Pipe()
-	defer pr.Close()
-
-	session.Stdout = pw
-	session.Stderr = pw
-
-	if err := session.Start(command); err != nil {
-		return fmt.Errorf("failed to start command: %w", err)
-	}
-
-	done := make(chan error, 1)
-	go func() {
-		done <- session.Wait()
-		_ = pw.Close()
-	}()
-
-	var output strings.Builder
-
-	go func() {
-		_, _ = io.Copy(&output, pr)
-	}()
-
-	select {
-	case <-ctx.Done():
-		_ = session.Signal(ssh.SIGTERM)
-		return ctx.Err()
-	case err := <-done:
-		if err != nil {
-			return fmt.Errorf("%w\nOutput: %s", err, output.String())
-		}
-		return nil
-	}
-}
-
+// RunCommandWithOutput runs a command on the remote host and returns its output.
 func (c *Runner) RunCommandWithOutput(command string) (string, error) {
 	session, err := c.sshClient.NewSession()
 	if err != nil {
