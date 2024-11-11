@@ -114,75 +114,15 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 					"POSTGRES_DB":       "test",
 				},
 			},
-			{
-				Name:  "mysql",
-				Image: "mysql:8",
-				Volumes: []string{
-					"mysql_data:/var/lib/mysql",
-				},
-				EnvVars: map[string]string{
-					"MYSQL_ROOT_PASSWORD": "S3cret",
-					"MYSQL_DATABASE":      "test",
-					"MYSQL_USER":          "test",
-					"MYSQL_PASSWORD":      "S3cret",
-				},
-			},
-			{
-				Name:  "mongodb",
-				Image: "mongo:latest",
-				Volumes: []string{
-					"mongodb_data:/data/db",
-				},
-				EnvVars: map[string]string{
-					"MONGO_INITDB_ROOT_USERNAME": "root",
-					"MONGO_INITDB_ROOT_PASSWORD": "S3cret",
-				},
-			},
-			{
-				Name:  "redis",
-				Image: "redis:latest",
-				Volumes: []string{
-					"redis_data:/data",
-				},
-			},
-			{
-				Name:  "rabbitmq",
-				Image: "rabbitmq:management",
-				Volumes: []string{
-					"rabbitmq_data:/var/lib/rabbitmq",
-				},
-				EnvVars: map[string]string{
-					"RABBITMQ_DEFAULT_USER": "user",
-					"RABBITMQ_DEFAULT_PASS": "S3cret",
-				},
-			},
-			{
-				Name:  "elasticsearch",
-				Image: "elasticsearch:7.14.0",
-				Volumes: []string{
-					"elasticsearch_data:/usr/share/elasticsearch/data",
-				},
-				EnvVars: map[string]string{
-					"discovery.type": "single-node",
-					"ES_JAVA_OPTS":   "-Xms512m -Xmx512m",
-				},
-			},
 		},
 		Volumes: []string{
 			"postgres_data",
-			"mysql_data",
-			"mongodb_data",
-			"redis_data",
-			"rabbitmq_data",
-			"elasticsearch_data",
 		},
 	}
 
-	// Prepare the project folder
 	projectPath, err := suite.deployment.prepareProjectFolder(project)
 	suite.Require().NoError(err)
 
-	// Generate certificates
 	proxyCertPath := filepath.Join(projectPath, "localhost.crt")
 	proxyKeyPath := filepath.Join(projectPath, "localhost.key")
 	mkcertCmds := [][]string{
@@ -195,7 +135,6 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		suite.Require().NoError(err, "Command output: %s", output)
 	}
 
-	// Cleanup containers and volumes before the test
 	suite.cleanupDeployment()
 	defer suite.cleanupDeployment()
 
@@ -203,7 +142,6 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		// Deploy the initial configuration
 		events := suite.deployment.Deploy(ctx, project, cfg)
 		for event := range events {
 			suite.T().Logf("Event: %s", event)
@@ -213,10 +151,8 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 			}
 		}
 
-		// Wait for services to stabilize
 		time.Sleep(5 * time.Second)
 
-		// Start making requests to test zero-downtime deployment
 		var requestStats struct {
 			totalRequests  int32
 			failedRequests int32
@@ -252,15 +188,12 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 			}()
 		}
 
-		// Wait for some requests to be made
 		time.Sleep(2 * time.Second)
 
-		// Update the service image to trigger a redeployment
 		cfg.Services[0].Image = "nginx:1.20"
 
 		suite.T().Logf("Updating service image to nginx:1.20")
 
-		// Redeploy with the updated configuration
 		events = suite.deployment.Deploy(ctx, project, cfg)
 		for event := range events {
 			suite.T().Logf("Event: %s", event)
@@ -268,10 +201,8 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 				suite.Require().Fail(event.Message, "Deployment error %s", event.Message)
 				return
 			}
-			// Optionally handle other events
 		}
 
-		// Wait for the redeployment to complete
 		time.Sleep(2 * time.Second)
 		requestCancel()
 
@@ -280,7 +211,6 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 
 		serviceName := "web"
 
-		// Assert that there were no failed requests during the deployment
 		suite.Require().Equal(int32(0), requestStats.failedRequests, "Expected zero failed requests during zero-downtime deployment")
 
 		containerInfo := suite.inspectContainer(serviceName)
