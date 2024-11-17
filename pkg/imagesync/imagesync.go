@@ -334,7 +334,17 @@ func (s *ImageSync) loadRemoteImage(ctx context.Context) error {
 	cmd := fmt.Sprintf("cd %s && tar -cf - . | docker load",
 		filepath.Join(s.cfg.RemoteStore, normalizeImageName(s.cfg.ImageName)))
 
-	_, err := s.runner.RunCommand(ctx, cmd)
+	outputReader, err := s.runner.RunCommand(ctx, cmd)
+	if err != nil {
+		return fmt.Errorf("failed to load remote image: %w", err)
+	}
+	defer outputReader.Close()
+
+	_, err = io.ReadAll(outputReader)
+	if err != nil {
+		return fmt.Errorf("failed to read output of command '%s': %w", cmd, err)
+	}
+
 	return err
 }
 

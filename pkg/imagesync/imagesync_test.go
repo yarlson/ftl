@@ -95,7 +95,7 @@ func TestImageSync(t *testing.T) {
 
 	output, err := io.ReadAll(outputReader)
 	require.NoError(t, err)
-	require.Contains(t, output, testImage)
+	require.Contains(t, string(output), testImage)
 
 	// Test image comparison
 	t.Log("Comparing images...")
