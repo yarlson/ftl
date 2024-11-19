@@ -88,43 +88,48 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 
 	events := deploy.Deploy(ctx, project, cfg)
 
-	var spinner *pterm.SpinnerPrinter
+	multi := pterm.DefaultMultiPrinter
+
+	spinners := make(map[string]*pterm.SpinnerPrinter)
+
+	_, _ = multi.Start()
+	defer func() { _, _ = multi.Stop() }()
 
 	for event := range events {
 		switch event.Type {
 		case deployment.EventTypeStart:
-			if spinner != nil {
-				spinner.Success()
-			}
-			spinner = console.NewSpinner(event.Message)
+			spinner := console.NewSpinnerWithWriter(event.Message, multi.NewWriter())
+			spinners[event.Name] = spinner
 		case deployment.EventTypeProgress:
-			if spinner != nil {
+			if spinner, ok := spinners[event.Name]; ok {
 				spinner.UpdateText(event.Message)
 			} else {
 				console.Info(event.Message)
 			}
 		case deployment.EventTypeFinish:
-			if spinner != nil {
+			if spinner, ok := spinners[event.Name]; ok {
 				spinner.Success(event.Message)
-				spinner = nil
+				delete(spinners, event.Name)
 			} else {
 				console.Success(event.Message)
 			}
 		case deployment.EventTypeError:
-			if spinner != nil {
+			if spinner, ok := spinners[event.Name]; ok {
 				spinner.Fail(fmt.Sprintf("Deployment error: %s", event.Message))
+				delete(spinners, event.Name)
 			} else {
 				console.Error(fmt.Sprintf("Deployment error: %s", event.Message))
 			}
 			return fmt.Errorf("deployment error: %s", event.Message)
 		case deployment.EventTypeComplete:
-			if spinner != nil {
+			if spinner, ok := spinners[event.Name]; ok {
 				spinner.Success(event.Message)
+				delete(spinners, event.Name)
 			} else {
 				console.Success(event.Message)
 			}
 		default:
-			if spinner != nil {
+			if spinner, ok := spinners[event.Name]; ok {
 				spinner.UpdateText(event.Message)
 			} else {
 				console.Info(event.Message)
@@ -132,7 +137,7 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 		}
 	}
 
-	if spinner != nil {
+	for _, spinner := range spinners {
 		_ = spinner.Stop()
 	}
 

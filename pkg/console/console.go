@@ -3,6 +3,7 @@ package console
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -86,6 +87,10 @@ func ReadPassword() (string, error) {
 }
 
 func NewSpinner(initialText string) *pterm.SpinnerPrinter {
+	return NewSpinnerWithWriter(initialText, os.Stdout)
+}
+
+func NewSpinnerWithWriter(initialText string, writer io.Writer) *pterm.SpinnerPrinter {
 	spinner := pterm.SpinnerPrinter{
 		Sequence:            []string{" ⠋ ", " ⠙ ", " ⠹ ", " ⠸ ", " ⠼ ", " ⠴ ", " ⠦ ", " ⠧ ", " ⠇ ", " ⠏ "},
 		Style:               &pterm.ThemeDefault.SpinnerStyle,
@@ -98,6 +103,7 @@ func NewSpinner(initialText string) *pterm.SpinnerPrinter {
 		SuccessPrinter:      successPrinter,
 		FailPrinter:         errorPrinter,
 		WarningPrinter:      warningPrinter,
+		Writer:              writer,
 	}
 
 	spinnerPrinter, _ := spinner.Start(initialText)

@@ -61,21 +61,24 @@ func buildAndPushServices(ctx context.Context, services []config.Service, builde
 }
 
 func buildAndPushService(ctx context.Context, service config.Service, builder *build.Build, skipPush bool) error {
-	spinner := console.NewSpinner(fmt.Sprintf("building service %s", service.Name))
+	spinner := console.NewSpinner(fmt.Sprintf("Building service %s", service.Name))
 
 	if err := builder.Build(ctx, service.Image, service.Path); err != nil {
-		spinner.Fail("build failed")
+		spinner.Fail("Build failed")
 		return fmt.Errorf("failed to build image: %w", err)
 	}
 
+	spinner.Success(fmt.Sprintf("Service %s built successfully", service.Name))
+	spinner = console.NewSpinner(fmt.Sprintf("Pushing service %s", service.Name))
+
 	if !skipPush {
-		spinner.UpdateText(fmt.Sprintf("pushing service %s", service.Name))
+		spinner.UpdateText(fmt.Sprintf("Pushing service %s", service.Name))
 		if err := builder.Push(ctx, service.Image); err != nil {
-			spinner.Fail("push failed")
+			spinner.Fail("Push failed")
 			return fmt.Errorf("failed to push image: %w", err)
 		}
+		spinner.Success(fmt.Sprintf("Service %s pushed successfully", service.Name))
 	}
 
-	spinner.Success(fmt.Sprintf("service %s built successfully", service.Name))
 	return nil
 }
