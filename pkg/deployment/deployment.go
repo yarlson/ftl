@@ -100,8 +100,6 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 				}
 			}
 		}
-
-		events <- Event{Type: EventTypeComplete, Message: "Deployment complete"}
 	}()
 
 	return events
