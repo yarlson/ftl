@@ -59,43 +59,31 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 		defer close(events)
 
 		steps := []struct {
-			name   string
 			action func() error
 		}{
 			{
-				name: "Creating network",
 				action: func() error {
 					return d.createNetwork(project)
 				},
 			},
 			{
-				name: "Creating volumes",
 				action: func() error {
-					return d.createVolumes(project, cfg.Volumes)
+					return d.createVolumes(ctx, project, cfg.Volumes, events)
 				},
 			},
 			{
-				name: "Creating dependencies",
 				action: func() error {
 					return d.createDependencies(ctx, project, cfg.Dependencies, events)
 				},
 			},
 			{
-				name: "Deploying services",
 				action: func() error {
 					return d.deployServices(ctx, project, cfg.Services, events)
 				},
 			},
 			{
-				name: "Starting proxy",
 				action: func() error {
-					return d.startProxy(project, cfg)
-				},
-			},
-			{
-				name: "Deploying cert renewer",
-				action: func() error {
-					return d.deployCertRenewer(project, cfg)
+					return d.startProxy(ctx, project, cfg, events)
 				},
 			},
 		}
@@ -106,12 +94,10 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 				events <- Event{Type: EventTypeError, Message: "Deployment canceled"}
 				return
 			default:
-				events <- Event{Type: EventTypeStart, Message: step.name}
 				if err := step.action(); err != nil {
-					events <- Event{Type: EventTypeError, Message: fmt.Sprintf("%s failed: %v", step.name, err)}
+					events <- Event{Type: EventTypeError, Message: fmt.Sprintf("%v", err)}
 					return
 				}
-				events <- Event{Type: EventTypeFinish, Message: fmt.Sprintf("%s completed", step.name)}
 			}
 		}
 
@@ -121,12 +107,20 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 	return events
 }
 
-func (d *Deployment) createVolumes(project string, volumes []string) error {
+func (d *Deployment) createVolumes(ctx context.Context, project string, volumes []string, events chan<- Event) error {
 	for _, volume := range volumes {
-		if err := d.createVolume(project, volume); err != nil {
-			return fmt.Errorf("failed to create volume %s: %w", volume, err)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			events <- Event{Type: EventTypeStart, Message: fmt.Sprintf("Creating volume %s", volume)}
+			if err := d.createVolume(ctx, project, volume); err != nil {
+				return fmt.Errorf("failed to create volume %s: %w", volume, err)
+			}
+			events <- Event{Type: EventTypeFinish, Message: fmt.Sprintf("Volume %s created", volume)}
 		}
 	}
+
 	return nil
 }
 
@@ -136,10 +130,11 @@ func (d *Deployment) createDependencies(ctx context.Context, project string, dep
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+			events <- Event{Type: EventTypeStart, Message: fmt.Sprintf("Deploying dependency %s", dependency.Name)}
 			if err := d.startDependency(project, &dependency); err != nil {
 				return fmt.Errorf("failed to create dependency %s: %w", dependency.Name, err)
 			}
-			events <- Event{Type: EventTypeProgress, Message: fmt.Sprintf("Dependency %s created", dependency.Name)}
+			events <- Event{Type: EventTypeFinish, Message: fmt.Sprintf("Dependency %s deployed", dependency.Name)}
 		}
 	}
 	return nil
@@ -151,16 +146,17 @@ func (d *Deployment) deployServices(ctx context.Context, project string, service
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+			events <- Event{Type: EventTypeStart, Message: fmt.Sprintf("Deploying service %s", service.Name)}
 			if err := d.deployService(project, &service); err != nil {
 				return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 			}
-			events <- Event{Type: EventTypeProgress, Message: fmt.Sprintf("Service %s deployed", service.Name)}
+			events <- Event{Type: EventTypeFinish, Message: fmt.Sprintf("Service %s deployed", service.Name)}
 		}
 	}
 	return nil
 }
 
-func (d *Deployment) startProxy(project string, cfg *config.Config) error {
+func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config.Config, events chan<- Event) error {
 	projectPath, err := d.prepareProjectFolder(project)
 	if err != nil {
 		return fmt.Errorf("failed to prepare project folder: %w", err)
@@ -196,16 +192,37 @@ func (d *Deployment) startProxy(project string, cfg *config.Config) error {
 		Recreate: true,
 	}
 
-	if err := d.deployService(project, service); err != nil {
-		return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		events <- Event{Type: EventTypeStart, Message: fmt.Sprintf("Deploying service %s", service.Name)}
+		if err := d.deployService(project, service); err != nil {
+			return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
+		}
+		events <- Event{Type: EventTypeFinish, Message: fmt.Sprintf("Service %s deployed", service.Name)}
 	}
 
-	if err := d.reloadNginxConfig(context.Background()); err != nil {
-		return fmt.Errorf("failed to reload nginx config: %w", err)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		events <- Event{Type: EventTypeStart, Message: "Reloading Nginx config"}
+		if err := d.reloadNginxConfig(ctx); err != nil {
+			return fmt.Errorf("failed to reload nginx config: %w", err)
+		}
+		events <- Event{Type: EventTypeFinish, Message: "Nginx config reloaded"}
 	}
 
-	if err := d.deployCertRenewer(project, cfg); err != nil {
-		return fmt.Errorf("failed to deploy certrenewer service: %w", err)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		events <- Event{Type: EventTypeStart, Message: "Deploying cert renewer"}
+		if err := d.deployCertRenewer(project, cfg); err != nil {
+			return fmt.Errorf("failed to deploy certrenewer service: %w", err)
+		}
+		events <- Event{Type: EventTypeFinish, Message: "Cert renewer deployed"}
 	}
 
 	return nil
@@ -649,13 +666,13 @@ func (d *Deployment) createNetwork(network string) error {
 	return nil
 }
 
-func (d *Deployment) createVolume(project, volume string) error {
+func (d *Deployment) createVolume(ctx context.Context, project, volume string) error {
 	volumeName := fmt.Sprintf("%s-%s", project, volume)
 	if _, err := d.runCommand(context.Background(), "docker", "volume", "inspect", volumeName); err == nil {
 		return nil
 	}
 
-	_, err := d.runCommand(context.Background(), "docker", "volume", "create", volumeName)
+	_, err := d.runCommand(ctx, "docker", "volume", "create", volumeName)
 	if err != nil {
 		return fmt.Errorf("failed to create volume: %w", err)
 	}
