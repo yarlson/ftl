@@ -3,13 +3,12 @@ package console
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"strings"
-	"time"
+
+	"golang.org/x/term"
 
 	"github.com/pterm/pterm"
-	"golang.org/x/term"
 )
 
 // Info prints an information message.
@@ -86,30 +85,7 @@ func ReadPassword() (string, error) {
 	return string(password), nil
 }
 
-func NewSpinner(initialText string) *pterm.SpinnerPrinter {
-	return NewSpinnerWithWriter(initialText, os.Stdout)
-}
-
-func NewSpinnerWithWriter(initialText string, writer io.Writer) *pterm.SpinnerPrinter {
-	spinner := pterm.SpinnerPrinter{
-		Sequence:            []string{" ⠋ ", " ⠙ ", " ⠹ ", " ⠸ ", " ⠼ ", " ⠴ ", " ⠦ ", " ⠧ ", " ⠇ ", " ⠏ "},
-		Style:               &pterm.ThemeDefault.SpinnerStyle,
-		Delay:               time.Millisecond * 200,
-		ShowTimer:           false,
-		TimerRoundingFactor: time.Second,
-		TimerStyle:          &pterm.ThemeDefault.TimerStyle,
-		MessageStyle:        pterm.NewStyle(pterm.FgYellow),
-		InfoPrinter:         infoPrinter,
-		SuccessPrinter:      successPrinter,
-		FailPrinter:         errorPrinter,
-		WarningPrinter:      warningPrinter,
-		Writer:              writer,
-	}
-
-	spinnerPrinter, _ := spinner.Start(initialText)
-	return spinnerPrinter
-}
-
+// Print prints a message to the console.
 func Print(a ...interface{}) {
 	fmt.Println(a...)
 }

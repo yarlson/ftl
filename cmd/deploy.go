@@ -6,20 +6,17 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yarlson/ftl/pkg/imagesync"
-
-	"github.com/yarlson/ftl/pkg/ssh"
-
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/deployment"
+	"github.com/yarlson/ftl/pkg/imagesync"
 	"github.com/yarlson/ftl/pkg/runner/remote"
+	"github.com/yarlson/ftl/pkg/ssh"
 )
 
-// deployCmd represents the deploy command
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "Deploy your application to configured servers",
@@ -89,56 +86,16 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 	events := deploy.Deploy(ctx, project, cfg)
 
 	multi := pterm.DefaultMultiPrinter
-
-	spinners := make(map[string]*pterm.SpinnerPrinter)
-
 	_, _ = multi.Start()
 	defer func() { _, _ = multi.Stop() }()
 
-	for event := range events {
-		switch event.Type {
-		case deployment.EventTypeStart:
-			spinner := console.NewSpinnerWithWriter(event.Message, multi.NewWriter())
-			spinners[event.Name] = spinner
-		case deployment.EventTypeProgress:
-			if spinner, ok := spinners[event.Name]; ok {
-				spinner.UpdateText(event.Message)
-			} else {
-				console.Info(event.Message)
-			}
-		case deployment.EventTypeFinish:
-			if spinner, ok := spinners[event.Name]; ok {
-				spinner.Success(event.Message)
-				delete(spinners, event.Name)
-			} else {
-				console.Success(event.Message)
-			}
-		case deployment.EventTypeError:
-			if spinner, ok := spinners[event.Name]; ok {
-				spinner.Fail(fmt.Sprintf("Deployment error: %s", event.Message))
-				delete(spinners, event.Name)
-			} else {
-				console.Error(fmt.Sprintf("Deployment error: %s", event.Message))
-			}
-			return fmt.Errorf("deployment error: %s", event.Message)
-		case deployment.EventTypeComplete:
-			if spinner, ok := spinners[event.Name]; ok {
-				spinner.Success(event.Message)
-				delete(spinners, event.Name)
-			} else {
-				console.Success(event.Message)
-			}
-		default:
-			if spinner, ok := spinners[event.Name]; ok {
-				spinner.UpdateText(event.Message)
-			} else {
-				console.Info(event.Message)
-			}
-		}
-	}
+	spinnerGroup := console.NewSpinnerGroup(&multi)
+	defer spinnerGroup.StopAll()
 
-	for _, spinner := range spinners {
-		_ = spinner.Stop()
+	for event := range events {
+		if err := spinnerGroup.HandleEvent(event); err != nil {
+			return err
+		}
 	}
 
 	return nil

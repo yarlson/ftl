@@ -1,3 +1,5 @@
+// cmd/build.go
+
 package cmd
 
 import (
@@ -5,14 +7,13 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/yarlson/ftl/pkg/console"
 
 	"github.com/yarlson/ftl/pkg/build"
 	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/runner/local"
 )
 
-// buildCmd represents the build command
 var buildCmd = &cobra.Command{
 	Use:   "build",
 	Short: "Build your application Docker images",
@@ -44,40 +45,42 @@ func runBuild(cmd *cobra.Command, args []string) {
 	builder := build.NewBuild(runner)
 
 	ctx := context.Background()
+	spinnerManager := console.NewSpinnerGroup(nil) // No MultiPrinter needed for single spinners
 
-	if err := buildAndPushServices(ctx, cfg.Services, builder, skipPush); err != nil {
+	if err := buildAndPushServices(ctx, cfg.Services, builder, skipPush, spinnerManager); err != nil {
 		console.Error("Build process failed:", err)
 		return
 	}
 }
 
-func buildAndPushServices(ctx context.Context, services []config.Service, builder *build.Build, skipPush bool) error {
+func buildAndPushServices(ctx context.Context, services []config.Service, builder *build.Build, skipPush bool, spinnerGroup *console.SpinnerGroup) error {
 	for _, service := range services {
-		if err := buildAndPushService(ctx, service, builder, skipPush); err != nil {
+		if err := buildAndPushService(ctx, service, builder, skipPush, spinnerGroup); err != nil {
 			return fmt.Errorf("failed to build service %s: %w", service.Name, err)
 		}
 	}
 	return nil
 }
 
-func buildAndPushService(ctx context.Context, service config.Service, builder *build.Build, skipPush bool) error {
-	spinner := console.NewSpinner(fmt.Sprintf("Building service %s", service.Name))
-
-	if err := builder.Build(ctx, service.Image, service.Path); err != nil {
-		spinner.Fail("Build failed")
+func buildAndPushService(ctx context.Context, service config.Service, builder *build.Build, skipPush bool, spinnerGroup *console.SpinnerGroup) error {
+	buildMessage := fmt.Sprintf("Building service %s", service.Name)
+	buildSuccessMessage := fmt.Sprintf("Service %s built successfully", service.Name)
+	if err := spinnerGroup.RunWithSpinner(buildMessage, func() error {
+		return builder.Build(ctx, service.Image, service.Path)
+	}, buildSuccessMessage); err != nil {
 		return fmt.Errorf("failed to build image: %w", err)
 	}
 
-	spinner.Success(fmt.Sprintf("Service %s built successfully", service.Name))
-	spinner = console.NewSpinner(fmt.Sprintf("Pushing service %s", service.Name))
+	if skipPush {
+		return nil
+	}
 
-	if !skipPush {
-		spinner.UpdateText(fmt.Sprintf("Pushing service %s", service.Name))
-		if err := builder.Push(ctx, service.Image); err != nil {
-			spinner.Fail("Push failed")
-			return fmt.Errorf("failed to push image: %w", err)
-		}
-		spinner.Success(fmt.Sprintf("Service %s pushed successfully", service.Name))
+	pushMessage := fmt.Sprintf("Pushing service %s", service.Name)
+	pushSuccessMessage := fmt.Sprintf("Service %s pushed successfully", service.Name)
+	if err := spinnerGroup.RunWithSpinner(pushMessage, func() error {
+		return builder.Push(ctx, service.Image)
+	}, pushSuccessMessage); err != nil {
+		return fmt.Errorf("failed to push image: %w", err)
 	}
 
 	return nil
