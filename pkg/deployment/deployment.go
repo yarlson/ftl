@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -122,27 +123,60 @@ func (d *Deployment) createVolumes(ctx context.Context, project string, volumes 
 	return nil
 }
 
+// createDependencies deploys all dependencies concurrently.
 func (d *Deployment) createDependencies(ctx context.Context, project string, dependencies []config.Dependency, events chan<- console.Event) error {
-	for _, dependency := range dependencies {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			events <- console.Event{
-				Type:    console.EventTypeStart,
-				Message: fmt.Sprintf("Deploying dependency %s", dependency.Name),
-				Name:    "dependencies",
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(dependencies))
+
+	for _, dep := range dependencies {
+		wg.Add(1)
+		go func(dep config.Dependency) {
+			defer wg.Done()
+
+			select {
+			case <-ctx.Done():
+				errChan <- ctx.Err()
+				return
+			default:
+				depName := dep.Name
+
+				events <- console.Event{
+					Type:    console.EventTypeStart,
+					Message: fmt.Sprintf("Deploying dependency %s", depName),
+					Name:    depName,
+				}
+
+				if err := d.startDependency(project, &dep); err != nil {
+					events <- console.Event{
+						Type:    console.EventTypeError,
+						Message: fmt.Sprintf("Failed to deploy dependency %s: %v", depName, err),
+						Name:    depName,
+					}
+					errChan <- fmt.Errorf("failed to deploy dependency %s: %w", depName, err)
+					return
+				}
+
+				events <- console.Event{
+					Type:    console.EventTypeFinish,
+					Message: fmt.Sprintf("Dependency %s deployed", depName),
+					Name:    depName,
+				}
 			}
-			if err := d.startDependency(project, &dependency); err != nil {
-				return fmt.Errorf("failed to create dependency %s: %w", dependency.Name, err)
-			}
-			events <- console.Event{
-				Type:    console.EventTypeFinish,
-				Message: fmt.Sprintf("Dependency %s deployed", dependency.Name),
-				Name:    "dependencies",
-			}
-		}
+		}(dep)
 	}
+
+	wg.Wait()
+	close(errChan)
+
+	var errs []error
+	for err := range errChan {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("errors occurred during dependency deployment: %v", errs)
+	}
+
 	return nil
 }
 
