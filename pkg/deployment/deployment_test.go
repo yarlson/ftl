@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/yarlson/ftl/pkg/console"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -16,8 +15,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/suite"
-
 	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/runner/remote"
 	"github.com/yarlson/ftl/pkg/ssh"
 	"github.com/yarlson/ftl/tests/dockercontainer"

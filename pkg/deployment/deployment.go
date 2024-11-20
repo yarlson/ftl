@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/yarlson/ftl/pkg/console"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 	"unicode"
 
 	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/proxy"
 )
 
