@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"io/ioutil"
 )
 
 // NewSSHClientWithKey creates a new ssh.Client using a private key
@@ -17,10 +18,19 @@ func NewSSHClientWithKey(host string, port int, user string, key []byte) (*ssh.C
 		return nil, fmt.Errorf("failed to parse private key: %v", err)
 	}
 
+	publicKeyBytes, err := ioutil.ReadFile("allowed_hostkey.pub")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read allowed host key: %v", err)
+	}
+	allowedHostKey, err := ssh.ParsePublicKey(publicKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse allowed host key: %v", err)
+	}
+
 	config := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: ssh.FixedHostKey(allowedHostKey),
 		Timeout:         10 * time.Second,
 	}
 
@@ -36,10 +46,19 @@ func NewSSHClientWithKey(host string, port int, user string, key []byte) (*ssh.C
 
 // NewSSHClientWithPassword creates a new ssh.Client using a password
 func NewSSHClientWithPassword(host string, port string, user string, password string) (*ssh.Client, error) {
+	publicKeyBytes, err := ioutil.ReadFile("allowed_hostkey.pub")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read allowed host key: %v", err)
+	}
+	allowedHostKey, err := ssh.ParsePublicKey(publicKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse allowed host key: %v", err)
+	}
+
 	config := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: ssh.FixedHostKey(allowedHostKey),
 		Timeout:         10 * time.Second,
 	}
 
