@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/yarlson/ftl/pkg/config"
@@ -85,11 +84,7 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 
 	events := deploy.Deploy(ctx, project, cfg)
 
-	multi := pterm.DefaultMultiPrinter
-	_, _ = multi.Start()
-	defer func() { _, _ = multi.Stop() }()
-
-	spinnerGroup := console.NewSpinnerGroup(&multi)
+	spinnerGroup := console.NewSpinnerGroup()
 	defer spinnerGroup.StopAll()
 
 	for event := range events {

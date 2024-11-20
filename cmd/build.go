@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/yarlson/ftl/pkg/build"
@@ -59,11 +58,7 @@ func buildAndPushServices(ctx context.Context, services []config.Service, builde
 	eventChan := make(chan console.Event)
 	done := make(chan struct{})
 
-	multiPrinter := pterm.DefaultMultiPrinter
-	_, _ = multiPrinter.Start()
-	defer func() { _, _ = multiPrinter.Stop() }()
-
-	spinnerGroup := console.NewSpinnerGroup(&multiPrinter)
+	spinnerGroup := console.NewSpinnerGroup()
 	defer spinnerGroup.StopAll()
 
 	go func() {

@@ -61,11 +61,13 @@ type SpinnerGroup struct {
 }
 
 // NewSpinnerGroup creates a new SpinnerGroup.
-// If a MultiPrinter is provided, it will use it for spinner output.
-func NewSpinnerGroup(multi *pterm.MultiPrinter) *SpinnerGroup {
+func NewSpinnerGroup() *SpinnerGroup {
+	multi := pterm.DefaultMultiPrinter
+	_, _ = multi.Start()
+
 	return &SpinnerGroup{
 		spinners: make(map[string]*pterm.SpinnerPrinter),
-		multi:    multi,
+		multi:    &multi,
 	}
 }
 
@@ -129,6 +131,10 @@ func (sm *SpinnerGroup) HandleEvent(event Event) error {
 
 // StopAll stops all active spinners.
 func (sm *SpinnerGroup) StopAll() {
+	if sm.multi != nil {
+		_, _ = sm.multi.Stop()
+	}
+
 	for _, spinner := range sm.spinners {
 		_ = spinner.Stop()
 	}
