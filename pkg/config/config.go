@@ -42,7 +42,7 @@ type Server struct {
 
 type Service struct {
 	Name        string       `yaml:"name" validate:"required"`
-	Image       string       `yaml:"image" validate:"required"`
+	Image       string       `yaml:"image"`
 	Port        int          `yaml:"port" validate:"required,min=1,max=65535"`
 	Path        string       `yaml:"path"`
 	HealthCheck *HealthCheck `yaml:"health_check"`

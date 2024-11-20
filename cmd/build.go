@@ -45,14 +45,14 @@ func runBuild(cmd *cobra.Command, args []string) {
 
 	ctx := context.Background()
 
-	if err := buildAndPushServices(ctx, cfg.Services, builder, skipPush); err != nil {
+	if err := buildAndPushServices(ctx, cfg.Project.Name, cfg.Services, builder, skipPush); err != nil {
 		console.Error("Build process failed:", err)
 		return
 	}
 }
 
 // buildAndPushServices builds and pushes all services concurrently.
-func buildAndPushServices(ctx context.Context, services []config.Service, builder *build.Build, skipPush bool) error {
+func buildAndPushServices(ctx context.Context, project string, services []config.Service, builder *build.Build, skipPush bool) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(services))
 	eventChan := make(chan console.Event)
@@ -75,13 +75,17 @@ func buildAndPushServices(ctx context.Context, services []config.Service, builde
 		go func(svc config.Service) {
 			defer wg.Done()
 			serviceName := svc.Name
+			image := svc.Image
+			if image == "" {
+				image = fmt.Sprintf("%s-%s", project, serviceName)
+			}
 
 			eventChan <- console.Event{
 				Type:    console.EventTypeStart,
 				Message: fmt.Sprintf("Building service %s", serviceName),
 				Name:    serviceName,
 			}
-			if err := builder.Build(ctx, svc.Image, svc.Path); err != nil {
+			if err := builder.Build(ctx, image, svc.Path); err != nil {
 				eventChan <- console.Event{
 					Type:    console.EventTypeError,
 					Message: fmt.Sprintf("Failed to build service %s: %v", serviceName, err),
@@ -96,7 +100,7 @@ func buildAndPushServices(ctx context.Context, services []config.Service, builde
 				Name:    serviceName,
 			}
 
-			if skipPush {
+			if skipPush || svc.Image == "" {
 				return
 			}
 
