@@ -1,5 +1,3 @@
-// cmd/build.go
-
 package cmd
 
 import (

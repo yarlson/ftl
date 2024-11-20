@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/yarlson/ftl/pkg/console"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -145,7 +146,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		events := suite.deployment.Deploy(ctx, project, cfg)
 		for event := range events {
 			suite.T().Logf("Event: %s", event)
-			if event.Type == EventTypeError {
+			if event.Type == console.EventTypeError {
 				suite.Require().Fail(event.Message, "Deployment error %s", event.Message)
 				return
 			}
@@ -197,7 +198,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		events = suite.deployment.Deploy(ctx, project, cfg)
 		for event := range events {
 			suite.T().Logf("Event: %s", event)
-			if event.Type == EventTypeError {
+			if event.Type == console.EventTypeError {
 				suite.Require().Fail(event.Message, "Deployment error %s", event.Message)
 				return
 			}

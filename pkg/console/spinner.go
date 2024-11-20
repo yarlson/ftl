@@ -7,8 +7,26 @@ import (
 	"time"
 
 	"github.com/pterm/pterm"
-	"github.com/yarlson/ftl/pkg/deployment"
 )
+
+// EventType represents the type of spinner event.
+type EventType string
+
+// EventType constants.
+const (
+	EventTypeStart    EventType = "start"
+	EventTypeProgress EventType = "progress"
+	EventTypeFinish   EventType = "finish"
+	EventTypeComplete EventType = "complete"
+	EventTypeError    EventType = "error"
+)
+
+// Event represents a spinner event.
+type Event struct {
+	Type    EventType
+	Name    string
+	Message string
+}
 
 // NewSpinner creates a new spinner with the given initial text.
 func NewSpinner(initialText string) *pterm.SpinnerPrinter {
@@ -72,32 +90,33 @@ func (sm *SpinnerGroup) RunWithSpinner(message string, action func() error, succ
 }
 
 // HandleEvent processes deployment events and updates spinners accordingly.
-func (sm *SpinnerGroup) HandleEvent(event deployment.Event) error {
+func (sm *SpinnerGroup) HandleEvent(event Event) error {
 	switch event.Type {
-	case deployment.EventTypeStart:
+	case EventTypeStart:
 		spinner := NewSpinnerWithWriter(event.Message, sm.multi.NewWriter())
 		sm.spinners[event.Name] = spinner
-	case deployment.EventTypeProgress:
+	case EventTypeProgress:
 		if spinner, ok := sm.spinners[event.Name]; ok {
 			spinner.UpdateText(event.Message)
 		} else {
 			Info(event.Message)
 		}
-	case deployment.EventTypeFinish, deployment.EventTypeComplete:
+	case EventTypeFinish, EventTypeComplete:
 		if spinner, ok := sm.spinners[event.Name]; ok {
 			spinner.Success(event.Message)
 			delete(sm.spinners, event.Name)
 		} else {
 			Success(event.Message)
 		}
-	case deployment.EventTypeError:
+	case EventTypeError:
 		if spinner, ok := sm.spinners[event.Name]; ok {
-			spinner.Fail(fmt.Sprintf("Deployment error: %s", event.Message))
+			spinner.Fail(fmt.Sprintf("Error: %s", event.Message))
 			delete(sm.spinners, event.Name)
 		} else {
-			Error(fmt.Sprintf("Deployment error: %s", event.Message))
+			Error(fmt.Sprintf("Error: %s", event.Message))
 		}
-		return fmt.Errorf("deployment error: %s", event.Message)
+
+		return fmt.Errorf("error: %s", event.Message)
 	default:
 		if spinner, ok := sm.spinners[event.Name]; ok {
 			spinner.UpdateText(event.Message)
