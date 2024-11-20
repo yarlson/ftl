@@ -3,7 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"sync"
 
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
 	"github.com/yarlson/ftl/pkg/build"
@@ -43,42 +45,100 @@ func runBuild(cmd *cobra.Command, args []string) {
 	builder := build.NewBuild(runner)
 
 	ctx := context.Background()
-	spinnerManager := console.NewSpinnerGroup(nil) // No MultiPrinter needed for single spinners
 
-	if err := buildAndPushServices(ctx, cfg.Services, builder, skipPush, spinnerManager); err != nil {
+	if err := buildAndPushServices(ctx, cfg.Services, builder, skipPush); err != nil {
 		console.Error("Build process failed:", err)
 		return
 	}
 }
 
-func buildAndPushServices(ctx context.Context, services []config.Service, builder *build.Build, skipPush bool, spinnerGroup *console.SpinnerGroup) error {
-	for _, service := range services {
-		if err := buildAndPushService(ctx, service, builder, skipPush, spinnerGroup); err != nil {
-			return fmt.Errorf("failed to build service %s: %w", service.Name, err)
+// buildAndPushServices builds and pushes all services concurrently.
+func buildAndPushServices(ctx context.Context, services []config.Service, builder *build.Build, skipPush bool) error {
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(services))
+	eventChan := make(chan console.Event)
+	done := make(chan struct{})
+
+	multiPrinter := pterm.DefaultMultiPrinter
+	_, _ = multiPrinter.Start()
+	defer func() { _, _ = multiPrinter.Stop() }()
+
+	spinnerGroup := console.NewSpinnerGroup(&multiPrinter)
+	defer spinnerGroup.StopAll()
+
+	go func() {
+		for event := range eventChan {
+			if err := spinnerGroup.HandleEvent(event); err != nil {
+				errChan <- err
+			}
 		}
-	}
-	return nil
-}
+		close(done)
+	}()
 
-func buildAndPushService(ctx context.Context, service config.Service, builder *build.Build, skipPush bool, spinnerGroup *console.SpinnerGroup) error {
-	buildMessage := fmt.Sprintf("Building service %s", service.Name)
-	buildSuccessMessage := fmt.Sprintf("Service %s built successfully", service.Name)
-	if err := spinnerGroup.RunWithSpinner(buildMessage, func() error {
-		return builder.Build(ctx, service.Image, service.Path)
-	}, buildSuccessMessage); err != nil {
-		return fmt.Errorf("failed to build image: %w", err)
+	for _, svc := range services {
+		wg.Add(1)
+		go func(svc config.Service) {
+			defer wg.Done()
+			serviceName := svc.Name
+
+			eventChan <- console.Event{
+				Type:    console.EventTypeStart,
+				Message: fmt.Sprintf("Building service %s", serviceName),
+				Name:    serviceName,
+			}
+			if err := builder.Build(ctx, svc.Image, svc.Path); err != nil {
+				eventChan <- console.Event{
+					Type:    console.EventTypeError,
+					Message: fmt.Sprintf("Failed to build service %s: %v", serviceName, err),
+					Name:    serviceName,
+				}
+				errChan <- fmt.Errorf("failed to build service %s: %w", serviceName, err)
+				return
+			}
+			eventChan <- console.Event{
+				Type:    console.EventTypeFinish,
+				Message: fmt.Sprintf("Service %s built successfully", serviceName),
+				Name:    serviceName,
+			}
+
+			if skipPush {
+				return
+			}
+
+			eventChan <- console.Event{
+				Type:    console.EventTypeStart,
+				Message: fmt.Sprintf("Pushing service %s", serviceName),
+				Name:    serviceName,
+			}
+			if err := builder.Push(ctx, svc.Image); err != nil {
+				eventChan <- console.Event{
+					Type:    console.EventTypeError,
+					Message: fmt.Sprintf("Failed to push service %s: %v", serviceName, err),
+					Name:    serviceName,
+				}
+				errChan <- fmt.Errorf("failed to push service %s: %w", serviceName, err)
+				return
+			}
+			eventChan <- console.Event{
+				Type:    console.EventTypeFinish,
+				Message: fmt.Sprintf("Service %s pushed successfully", serviceName),
+				Name:    serviceName,
+			}
+		}(svc)
 	}
 
-	if skipPush {
-		return nil
+	wg.Wait()
+	close(eventChan)
+	<-done
+	close(errChan)
+
+	var errs []error
+	for err := range errChan {
+		errs = append(errs, err)
 	}
 
-	pushMessage := fmt.Sprintf("Pushing service %s", service.Name)
-	pushSuccessMessage := fmt.Sprintf("Service %s pushed successfully", service.Name)
-	if err := spinnerGroup.RunWithSpinner(pushMessage, func() error {
-		return builder.Push(ctx, service.Image)
-	}, pushSuccessMessage); err != nil {
-		return fmt.Errorf("failed to push image: %w", err)
+	if len(errs) > 0 {
+		return fmt.Errorf("errors occurred during build/push: %v", errs)
 	}
 
 	return nil
