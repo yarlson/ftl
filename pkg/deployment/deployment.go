@@ -64,7 +64,7 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 			{
 				name: "dependencies",
 				action: func() error {
-					return d.createDependencies(ctx, project, cfg.Dependencies, events)
+					return d.deployDependencies(ctx, project, cfg.Dependencies, events)
 				},
 			},
 			{
@@ -123,8 +123,8 @@ func (d *Deployment) createVolumes(ctx context.Context, project string, volumes 
 	return nil
 }
 
-// createDependencies deploys all dependencies concurrently.
-func (d *Deployment) createDependencies(ctx context.Context, project string, dependencies []config.Dependency, events chan<- console.Event) error {
+// deployDependencies deploys all dependencies concurrently.
+func (d *Deployment) deployDependencies(ctx context.Context, project string, dependencies []config.Dependency, events chan<- console.Event) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(dependencies))
 
