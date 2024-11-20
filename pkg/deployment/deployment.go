@@ -22,8 +22,9 @@ const (
 )
 
 type Runner interface {
-	RunCommand(ctx context.Context, command string, args ...string) (io.ReadCloser, error)
 	CopyFile(ctx context.Context, from, to string) error
+	GetHost() string
+	RunCommand(ctx context.Context, command string, args ...string) (io.ReadCloser, error)
 }
 
 type ImageSyncer interface {
@@ -99,6 +100,8 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 }
 
 func (d *Deployment) createVolumes(ctx context.Context, project string, volumes []string, events chan<- console.Event) error {
+	hostname := d.runner.GetHost()
+
 	for _, volume := range volumes {
 		select {
 		case <-ctx.Done():
@@ -106,15 +109,15 @@ func (d *Deployment) createVolumes(ctx context.Context, project string, volumes 
 		default:
 			events <- console.Event{
 				Type:    console.EventTypeStart,
-				Message: fmt.Sprintf("Creating volume %s", volume),
+				Message: fmt.Sprintf("[%s] Creating volume %s", hostname, volume),
 				Name:    "volumes",
 			}
 			if err := d.createVolume(ctx, project, volume); err != nil {
-				return fmt.Errorf("failed to create volume %s: %w", volume, err)
+				return fmt.Errorf("failed to create volume %s on host %s: %w", volume, hostname, err)
 			}
 			events <- console.Event{
 				Type:    console.EventTypeFinish,
-				Message: fmt.Sprintf("Volume %s created", volume),
+				Message: fmt.Sprintf("[%s] Volume %s created", hostname, volume),
 				Name:    "volumes",
 			}
 		}
@@ -125,6 +128,8 @@ func (d *Deployment) createVolumes(ctx context.Context, project string, volumes 
 
 // deployDependencies deploys all dependencies concurrently.
 func (d *Deployment) deployDependencies(ctx context.Context, project string, dependencies []config.Dependency, events chan<- console.Event) error {
+	hostname := d.runner.GetHost()
+
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(dependencies))
 
@@ -142,23 +147,23 @@ func (d *Deployment) deployDependencies(ctx context.Context, project string, dep
 
 				events <- console.Event{
 					Type:    console.EventTypeStart,
-					Message: fmt.Sprintf("Deploying dependency %s", depName),
+					Message: fmt.Sprintf("[%s] Deploying dependency %s", hostname, depName),
 					Name:    depName,
 				}
 
 				if err := d.startDependency(project, &dep); err != nil {
 					events <- console.Event{
 						Type:    console.EventTypeError,
-						Message: fmt.Sprintf("Failed to deploy dependency %s: %v", depName, err),
+						Message: fmt.Sprintf("[%s] Failed to deploy dependency %s: %v", hostname, depName, err),
 						Name:    depName,
 					}
-					errChan <- fmt.Errorf("failed to deploy dependency %s: %w", depName, err)
+					errChan <- fmt.Errorf("failed to deploy dependency %s on host %s: %w", depName, hostname, err)
 					return
 				}
 
 				events <- console.Event{
 					Type:    console.EventTypeFinish,
-					Message: fmt.Sprintf("Dependency %s deployed", depName),
+					Message: fmt.Sprintf("[%s] Dependency %s deployed", hostname, depName),
 					Name:    depName,
 				}
 			}
@@ -182,6 +187,8 @@ func (d *Deployment) deployDependencies(ctx context.Context, project string, dep
 
 // deployServices deploys all services concurrently.
 func (d *Deployment) deployServices(ctx context.Context, project string, services []config.Service, events chan<- console.Event) error {
+	hostname := d.runner.GetHost()
+
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(services))
 
@@ -199,14 +206,14 @@ func (d *Deployment) deployServices(ctx context.Context, project string, service
 
 				events <- console.Event{
 					Type:    console.EventTypeStart,
-					Message: fmt.Sprintf("Deploying service %s", serviceName),
+					Message: fmt.Sprintf("[%s] Deploying service %s", hostname, serviceName),
 					Name:    serviceName,
 				}
 
 				if err := d.deployService(project, &service); err != nil {
 					events <- console.Event{
 						Type:    console.EventTypeError,
-						Message: fmt.Sprintf("Failed to deploy service %s: %v", serviceName, err),
+						Message: fmt.Sprintf("[%s] Failed to deploy service %s: %v", hostname, serviceName, err),
 						Name:    serviceName,
 					}
 					errChan <- fmt.Errorf("failed to deploy service %s: %w", serviceName, err)
@@ -215,7 +222,7 @@ func (d *Deployment) deployServices(ctx context.Context, project string, service
 
 				events <- console.Event{
 					Type:    console.EventTypeFinish,
-					Message: fmt.Sprintf("Service %s deployed", serviceName),
+					Message: fmt.Sprintf("[%s] Service %s successfully deployed", hostname, serviceName),
 					Name:    serviceName,
 				}
 			}
@@ -238,6 +245,8 @@ func (d *Deployment) deployServices(ctx context.Context, project string, service
 }
 
 func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config.Config, events chan<- console.Event) error {
+	hostname := d.runner.GetHost()
+
 	projectPath, err := d.prepareProjectFolder(project)
 	if err != nil {
 		return fmt.Errorf("failed to prepare project folder: %w", err)
@@ -279,15 +288,15 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 	default:
 		events <- console.Event{
 			Type:    console.EventTypeStart,
-			Message: fmt.Sprintf("Deploying service %s", service.Name),
+			Message: fmt.Sprintf("[%s] Deploying service %s", hostname, service.Name),
 			Name:    "proxy",
 		}
 		if err := d.deployService(project, service); err != nil {
-			return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
+			return fmt.Errorf("failed to deploy service %s on host %s: %w", service.Name, hostname, err)
 		}
 		events <- console.Event{
 			Type:    console.EventTypeFinish,
-			Message: fmt.Sprintf("Service %s deployed", service.Name),
+			Message: fmt.Sprintf("[%s] Service %s deployed", hostname, service.Name),
 			Name:    "proxy",
 		}
 	}
@@ -298,15 +307,15 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 	default:
 		events <- console.Event{
 			Type:    console.EventTypeStart,
-			Message: "Reloading Nginx config",
+			Message: fmt.Sprintf("[%s] Reloading Nginx config", hostname),
 			Name:    "nginx",
 		}
 		if err := d.reloadNginxConfig(ctx); err != nil {
-			return fmt.Errorf("failed to reload nginx config: %w", err)
+			return fmt.Errorf("failed to reload nginx config on host %s: %w", hostname, err)
 		}
 		events <- console.Event{
 			Type:    console.EventTypeFinish,
-			Message: "Nginx config reloaded",
+			Message: fmt.Sprintf("[%s] Nginx config reloaded", hostname),
 			Name:    "nginx",
 		}
 	}
@@ -317,15 +326,15 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 	default:
 		events <- console.Event{
 			Type:    console.EventTypeStart,
-			Message: "Deploying cert renewer",
+			Message: fmt.Sprintf("[%s] Deploying cert renewer", hostname),
 			Name:    "certrenewer",
 		}
 		if err := d.deployCertRenewer(project, cfg); err != nil {
-			return fmt.Errorf("failed to deploy certrenewer service: %w", err)
+			return fmt.Errorf("failed to deploy certrenewer service on host %s: %w", hostname, err)
 		}
 		events <- console.Event{
 			Type:    console.EventTypeFinish,
-			Message: "Cert renewer deployed",
+			Message: fmt.Sprintf("[%s] Cert renewer deployed", hostname),
 			Name:    "certrenewer",
 		}
 	}

@@ -97,6 +97,12 @@ func (c *Runner) RunCommand(ctx context.Context, command string, args ...string)
 	return readCloser, nil
 }
 
+func (c *Runner) GetHost() string {
+	fullAddr := c.sshClient.RemoteAddr().String()
+	addr := strings.Split(fullAddr, ":")
+	return addr[0]
+}
+
 // sshEscapeArg properly escapes a command-line argument for SSH
 func sshEscapeArg(arg string) string {
 	return "'" + strings.Replace(arg, "'", "'\\''", -1) + "'"

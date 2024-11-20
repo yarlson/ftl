@@ -61,18 +61,19 @@ func deployToServers(cfg *config.Config) error {
 		if err := deployToServer(cfg.Project.Name, cfg, server); err != nil {
 			return fmt.Errorf("failed to deploy to server %s: %w", server.Host, err)
 		}
-		console.Success(fmt.Sprintf("Successfully deployed to server %s", server.Host))
+		console.Success(fmt.Sprintf("[%s] Successfully deployed to server", server.Host))
 	}
 
 	return nil
 }
 
 func deployToServer(project string, cfg *config.Config, server config.Server) error {
-	console.Info(fmt.Sprintf("Deploying to server %s...", server.Host))
+	hostname := server.Host
+	console.Info(fmt.Sprintf("[%s] Deploying to server...", hostname))
 
 	runner, err := connectToServer(server)
 	if err != nil {
-		return fmt.Errorf("failed to connect to server: %w", err)
+		return fmt.Errorf("failed to connect to server %s: %w", hostname, err)
 	}
 	defer runner.Close()
 
