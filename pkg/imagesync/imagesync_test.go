@@ -73,7 +73,6 @@ func TestImageSync(t *testing.T) {
 
 	// Initialize ImageSync
 	cfg := Config{
-		ImageName:   testImage,
 		LocalStore:  localStore,
 		RemoteStore: remoteStore,
 		MaxParallel: 4,
@@ -84,7 +83,7 @@ func TestImageSync(t *testing.T) {
 	// Run sync
 	t.Log("Running sync...")
 	ctx := context.Background()
-	err = sync.Sync(ctx)
+	err = sync.Sync(ctx, testImage)
 	require.NoError(t, err)
 
 	// Verify image exists on remote
@@ -99,12 +98,12 @@ func TestImageSync(t *testing.T) {
 
 	// Test image comparison
 	t.Log("Comparing images...")
-	needsSync, err := sync.compareImages(ctx)
+	needsSync, err := sync.compareImages(ctx, testImage)
 	require.NoError(t, err)
 	require.False(t, needsSync, "Images should be identical after sync")
 
 	// Test re-sync with no changes
 	t.Log("Re-syncing...")
-	err = sync.Sync(ctx)
+	err = sync.Sync(ctx, testImage)
 	require.NoError(t, err)
 }

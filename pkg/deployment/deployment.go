@@ -28,7 +28,7 @@ type Runner interface {
 }
 
 type ImageSyncer interface {
-	Sync(ctx context.Context) error
+	Sync(ctx context.Context, image string) error
 }
 
 type Deployment struct {
@@ -361,8 +361,14 @@ func (d *Deployment) startDependency(project string, dependency *config.Dependen
 }
 
 func (d *Deployment) installService(project string, service *config.Service) error {
-	if _, err := d.pullImage(service.Image); err != nil {
-		return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)
+	if service.Image != "" {
+		if _, err := d.pullImage(service.Image); err != nil {
+			return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)
+		}
+	} else {
+		if err := d.syncer.Sync(context.Background(), fmt.Sprintf("%s-%s", project, service.Name)); err != nil {
+			return fmt.Errorf("failed to sync service %s for %s: %v", service.Name, service.Image, err)
+		}
 	}
 
 	if err := d.startContainer(project, service, ""); err != nil {
@@ -381,8 +387,14 @@ func (d *Deployment) installService(project string, service *config.Service) err
 func (d *Deployment) updateService(project string, service *config.Service) error {
 	svcName := service.Name
 
-	if _, err := d.pullImage(service.Image); err != nil {
-		return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
+	if service.Image != "" {
+		if _, err := d.pullImage(service.Image); err != nil {
+			return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
+		}
+	} else {
+		if err := d.syncer.Sync(context.Background(), fmt.Sprintf("%s-%s", project, service.Name)); err != nil {
+			return fmt.Errorf("failed to sync service %s for %s: %v", service.Name, service.Image, err)
+		}
 	}
 
 	if service.Recreate {
@@ -537,7 +549,11 @@ func (d *Deployment) startContainer(project string, service *config.Service, suf
 		args = append(args, "--entrypoint", strings.Join(service.Entrypoint, " "))
 	}
 
-	args = append(args, service.Image)
+	image := service.Image
+	if image == "" {
+		image = fmt.Sprintf("%s-%s", project, service.Name)
+	}
+	args = append(args, image)
 
 	if service.Command != "" {
 		args = append(args, service.Command)

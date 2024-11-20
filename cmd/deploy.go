@@ -77,7 +77,15 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 	}
 	defer runner.Close()
 
-	syncer := imagesync.NewImageSync(imagesync.Config{}, runner)
+	localStore, err := os.MkdirTemp("", "dockersync-local")
+	if err != nil {
+		return fmt.Errorf("failed to create local store: %w", err)
+	}
+
+	syncer := imagesync.NewImageSync(imagesync.Config{
+		LocalStore:  localStore,
+		MaxParallel: 1,
+	}, runner)
 	deploy := deployment.NewDeployment(runner, syncer)
 
 	ctx, cancel := context.WithCancel(context.Background())

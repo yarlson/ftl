@@ -18,7 +18,6 @@ import (
 
 // Config holds the configuration for the Docker image sync operation.
 type Config struct {
-	ImageName   string
 	LocalStore  string
 	RemoteStore string
 	MaxParallel int
@@ -46,8 +45,8 @@ func NewImageSync(cfg Config, runner *remote.Runner) *ImageSync {
 }
 
 // Sync performs the Docker image synchronization process.
-func (s *ImageSync) Sync(ctx context.Context) error {
-	needsSync, err := s.compareImages(ctx)
+func (s *ImageSync) Sync(ctx context.Context, image string) error {
+	needsSync, err := s.compareImages(ctx, image)
 	if err != nil {
 		return fmt.Errorf("failed to compare images: %w", err)
 	}
@@ -60,19 +59,19 @@ func (s *ImageSync) Sync(ctx context.Context) error {
 		return fmt.Errorf("failed to prepare directories: %w", err)
 	}
 
-	if err := s.exportAndExtractImage(ctx); err != nil {
+	if err := s.exportAndExtractImage(ctx, image); err != nil {
 		return fmt.Errorf("failed to export and extract image: %w", err)
 	}
 
-	if err := s.transferMetadata(ctx); err != nil {
+	if err := s.transferMetadata(ctx, image); err != nil {
 		return fmt.Errorf("failed to transfer metadata: %w", err)
 	}
 
-	if err := s.syncBlobs(ctx); err != nil {
+	if err := s.syncBlobs(ctx, image); err != nil {
 		return fmt.Errorf("failed to sync blobs: %w", err)
 	}
 
-	if err := s.loadRemoteImage(ctx); err != nil {
+	if err := s.loadRemoteImage(ctx, image); err != nil {
 		return fmt.Errorf("failed to load remote image: %w", err)
 	}
 
@@ -80,13 +79,13 @@ func (s *ImageSync) Sync(ctx context.Context) error {
 }
 
 // compareImages checks if the image needs to be synced by comparing local and remote versions.
-func (s *ImageSync) compareImages(ctx context.Context) (bool, error) {
-	localInspect, err := s.inspectLocalImage()
+func (s *ImageSync) compareImages(ctx context.Context, image string) (bool, error) {
+	localInspect, err := s.inspectLocalImage(image)
 	if err != nil {
 		return false, fmt.Errorf("failed to inspect local image: %w", err)
 	}
 
-	remoteInspect, err := s.inspectRemoteImage(ctx)
+	remoteInspect, err := s.inspectRemoteImage(ctx, image)
 	if err != nil {
 		return true, nil // Assume sync needed if remote inspection fails
 	}
@@ -126,8 +125,8 @@ type ImageData struct {
 	Os           string `json:"Os"`
 }
 
-func (s *ImageSync) inspectLocalImage() (*ImageData, error) {
-	cmd := exec.Command("docker", "inspect", s.cfg.ImageName)
+func (s *ImageSync) inspectLocalImage(image string) (*ImageData, error) {
+	cmd := exec.Command("docker", "inspect", image)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("docker inspect failed: %w", err)
@@ -145,8 +144,8 @@ func (s *ImageSync) inspectLocalImage() (*ImageData, error) {
 	return &data[0], nil
 }
 
-func (s *ImageSync) inspectRemoteImage(ctx context.Context) (*ImageData, error) {
-	outputReader, err := s.runner.RunCommand(ctx, "docker", "inspect", s.cfg.ImageName)
+func (s *ImageSync) inspectRemoteImage(ctx context.Context, image string) (*ImageData, error) {
+	outputReader, err := s.runner.RunCommand(ctx, "docker", "inspect", image)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +180,8 @@ func (s *ImageSync) prepareDirectories(ctx context.Context) error {
 	return nil
 }
 
-func (s *ImageSync) exportAndExtractImage(ctx context.Context) error {
-	imageDir := normalizeImageName(s.cfg.ImageName)
+func (s *ImageSync) exportAndExtractImage(ctx context.Context, image string) error {
+	imageDir := normalizeImageName(image)
 	localPath := filepath.Join(s.cfg.LocalStore, imageDir)
 
 	if err := os.MkdirAll(localPath, 0755); err != nil {
@@ -190,7 +189,7 @@ func (s *ImageSync) exportAndExtractImage(ctx context.Context) error {
 	}
 
 	tarPath := filepath.Join(localPath, "image.tar")
-	cmd := exec.Command("docker", "save", s.cfg.ImageName, "-o", tarPath)
+	cmd := exec.Command("docker", "save", image, "-o", tarPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to save image: %w", err)
 	}
@@ -271,13 +270,13 @@ func extractFile(tr *tar.Reader, target string) error {
 	return nil
 }
 
-func (s *ImageSync) syncBlobs(ctx context.Context) error {
-	localBlobs, err := s.listLocalBlobs()
+func (s *ImageSync) syncBlobs(ctx context.Context, image string) error {
+	localBlobs, err := s.listLocalBlobs(image)
 	if err != nil {
 		return err
 	}
 
-	remoteBlobs, err := s.listRemoteBlobs(ctx)
+	remoteBlobs, err := s.listRemoteBlobs(ctx, image)
 	if err != nil {
 		return err
 	}
@@ -291,10 +290,10 @@ func (s *ImageSync) syncBlobs(ctx context.Context) error {
 	}
 
 	// Transfer blobs in parallel batches
-	return s.transferBlobs(ctx, blobsToTransfer)
+	return s.transferBlobs(ctx, image, blobsToTransfer)
 }
 
-func (s *ImageSync) transferBlobs(ctx context.Context, blobs []string) error {
+func (s *ImageSync) transferBlobs(ctx context.Context, image string, blobs []string) error {
 	if len(blobs) == 0 {
 		return nil
 	}
@@ -310,7 +309,7 @@ func (s *ImageSync) transferBlobs(ctx context.Context, blobs []string) error {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			if err := s.transferBlob(ctx, blob); err != nil {
+			if err := s.transferBlob(ctx, image, blob); err != nil {
 				errChan <- fmt.Errorf("failed to transfer blob %s: %w", blob, err)
 			}
 		}(blob)
@@ -330,9 +329,9 @@ func (s *ImageSync) transferBlobs(ctx context.Context, blobs []string) error {
 	return nil
 }
 
-func (s *ImageSync) loadRemoteImage(ctx context.Context) error {
+func (s *ImageSync) loadRemoteImage(ctx context.Context, image string) error {
 	cmd := fmt.Sprintf("cd %s && tar -cf - . | docker load",
-		filepath.Join(s.cfg.RemoteStore, normalizeImageName(s.cfg.ImageName)))
+		filepath.Join(s.cfg.RemoteStore, normalizeImageName(image)))
 
 	outputReader, err := s.runner.RunCommand(ctx, cmd)
 	if err != nil {
@@ -374,8 +373,8 @@ func contains(slice []string, item string) bool {
 }
 
 // listLocalBlobs returns a list of blob hashes from the local blob directory.
-func (s *ImageSync) listLocalBlobs() ([]string, error) {
-	imageDir := normalizeImageName(s.cfg.ImageName)
+func (s *ImageSync) listLocalBlobs(image string) ([]string, error) {
+	imageDir := normalizeImageName(image)
 	blobPath := filepath.Join(s.cfg.LocalStore, imageDir, "blobs", "sha256")
 
 	entries, err := os.ReadDir(blobPath)
@@ -394,8 +393,8 @@ func (s *ImageSync) listLocalBlobs() ([]string, error) {
 }
 
 // listRemoteBlobs returns a list of blob hashes from the remote blob directory.
-func (s *ImageSync) listRemoteBlobs(ctx context.Context) ([]string, error) {
-	imageDir := normalizeImageName(s.cfg.ImageName)
+func (s *ImageSync) listRemoteBlobs(ctx context.Context, image string) ([]string, error) {
+	imageDir := normalizeImageName(image)
 	blobPath := filepath.Join(s.cfg.RemoteStore, imageDir, "blobs", "sha256")
 
 	output, err := s.runner.RunCommand(ctx, "ls", blobPath)
@@ -413,8 +412,8 @@ func (s *ImageSync) listRemoteBlobs(ctx context.Context) ([]string, error) {
 }
 
 // transferBlob copies a single blob to the remote host.
-func (s *ImageSync) transferBlob(ctx context.Context, blob string) error {
-	imageDir := normalizeImageName(s.cfg.ImageName)
+func (s *ImageSync) transferBlob(ctx context.Context, image string, blob string) error {
+	imageDir := normalizeImageName(image)
 	localPath := filepath.Join(s.cfg.LocalStore, imageDir, "blobs", "sha256", blob)
 	remotePath := filepath.Join(s.cfg.RemoteStore, imageDir, "blobs", "sha256", blob)
 
@@ -427,8 +426,8 @@ func (s *ImageSync) transferBlob(ctx context.Context, blob string) error {
 }
 
 // transferMetadata copies the image metadata files to the remote host.
-func (s *ImageSync) transferMetadata(ctx context.Context) error {
-	imageDir := normalizeImageName(s.cfg.ImageName)
+func (s *ImageSync) transferMetadata(ctx context.Context, image string) error {
+	imageDir := normalizeImageName(image)
 	localDir := filepath.Join(s.cfg.LocalStore, imageDir)
 	remoteDir := filepath.Join(s.cfg.RemoteStore, imageDir)
 
