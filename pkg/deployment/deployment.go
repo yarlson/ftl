@@ -180,27 +180,60 @@ func (d *Deployment) deployDependencies(ctx context.Context, project string, dep
 	return nil
 }
 
+// deployServices deploys all services concurrently.
 func (d *Deployment) deployServices(ctx context.Context, project string, services []config.Service, events chan<- console.Event) error {
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(services))
+
 	for _, service := range services {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			events <- console.Event{
-				Type:    console.EventTypeStart,
-				Message: fmt.Sprintf("Deploying service %s", service.Name),
-				Name:    "services",
+		wg.Add(1)
+		go func(service config.Service) {
+			defer wg.Done()
+
+			select {
+			case <-ctx.Done():
+				errChan <- ctx.Err()
+				return
+			default:
+				serviceName := service.Name
+
+				events <- console.Event{
+					Type:    console.EventTypeStart,
+					Message: fmt.Sprintf("Deploying service %s", serviceName),
+					Name:    serviceName,
+				}
+
+				if err := d.deployService(project, &service); err != nil {
+					events <- console.Event{
+						Type:    console.EventTypeError,
+						Message: fmt.Sprintf("Failed to deploy service %s: %v", serviceName, err),
+						Name:    serviceName,
+					}
+					errChan <- fmt.Errorf("failed to deploy service %s: %w", serviceName, err)
+					return
+				}
+
+				events <- console.Event{
+					Type:    console.EventTypeFinish,
+					Message: fmt.Sprintf("Service %s deployed", serviceName),
+					Name:    serviceName,
+				}
 			}
-			if err := d.deployService(project, &service); err != nil {
-				return fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
-			}
-			events <- console.Event{
-				Type:    console.EventTypeFinish,
-				Message: fmt.Sprintf("Service %s deployed", service.Name),
-				Name:    "services",
-			}
-		}
+		}(service)
 	}
+
+	wg.Wait()
+	close(errChan)
+
+	var errs []error
+	for err := range errChan {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("errors occurred during service deployment: %v", errs)
+	}
+
 	return nil
 }
 
