@@ -1057,8 +1057,9 @@ func (d *Deployment) deployCertRenewer(project string, cfg *config.Config) error
 			"/var/run/docker.sock:/var/run/docker.sock",
 		},
 		EnvVars: map[string]string{
-			"DOMAIN": cfg.Project.Domain,
-			"EMAIL":  cfg.Project.Email,
+			"DOMAIN":               cfg.Project.Domain,
+			"EMAIL":                cfg.Project.Email,
+			"PROXY_CONTAINER_NAME": "proxy",
 		},
 		Entrypoint: []string{"/renew-certificates.sh"},
 		Recreate:   true,
