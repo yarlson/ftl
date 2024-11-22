@@ -5,3 +5,5 @@
 ftl
 /dist/
 /pkg/deployment/projects/
+ftl.yaml
+.env

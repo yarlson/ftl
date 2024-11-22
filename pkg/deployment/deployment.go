@@ -641,6 +641,15 @@ func (d *Deployment) pullImage(imageName string) (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
+func (d *Deployment) getImageHash(imageName string) (string, error) {
+	output, err := d.runCommand(context.Background(), "docker", "inspect", "--format={{.Id}}", imageName)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(output), nil
+}
+
 func (d *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
 	output, err := d.runner.RunCommand(ctx, command, args...)
 	if err != nil {
@@ -727,7 +736,7 @@ func (d *Deployment) serviceChanged(project string, service *config.Service) (bo
 }
 
 func (d *Deployment) deployService(project string, service *config.Service) error {
-	hash, err := d.pullImage(service.Image)
+	hash, err := d.getImageHash(service.Image)
 	if err != nil {
 		return fmt.Errorf("failed to pull image for %s: %w", service.Name, err)
 	}
