@@ -28,6 +28,7 @@ release:
   github:
     owner: yarlson
     name: ftl
+  draft: true
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
