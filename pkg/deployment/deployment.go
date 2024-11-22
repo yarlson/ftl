@@ -659,6 +659,10 @@ func (d *Deployment) getImageHash(imageName string) (string, error) {
 		return "", err
 	}
 
+	if strings.Contains(output, "Error: No such ") {
+		return "", nil
+	}
+
 	return strings.TrimSpace(output), nil
 }
 
@@ -748,7 +752,12 @@ func (d *Deployment) serviceChanged(project string, service *config.Service) (bo
 }
 
 func (d *Deployment) deployService(project string, service *config.Service) error {
-	hash, err := d.getImageHash(service.Image)
+	imageName := service.Image
+	if imageName == "" {
+		imageName = fmt.Sprintf("%s-%s", project, service.Name)
+	}
+
+	hash, err := d.getImageHash(imageName)
 	if err != nil {
 		return fmt.Errorf("failed to pull image for %s: %w", service.Name, err)
 	}
