@@ -371,7 +371,7 @@ func (d *Deployment) installService(project string, service *config.Service) err
 		}
 	}
 
-	if err := d.startContainer(project, service, ""); err != nil {
+	if err := d.createContainer(project, service, ""); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", service.Image, err)
 	}
 
@@ -404,7 +404,7 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 		return nil
 	}
 
-	if err := d.startContainer(project, service, newContainerSuffix); err != nil {
+	if err := d.createContainer(project, service, newContainerSuffix); err != nil {
 		return fmt.Errorf("failed to start new container for %s: %v", svcName, err)
 	}
 
@@ -441,7 +441,7 @@ func (d *Deployment) recreateService(project string, service *config.Service) er
 		return fmt.Errorf("failed to remove old container for %s: %v", service.Name, err)
 	}
 
-	if err := d.startContainer(project, service, ""); err != nil {
+	if err := d.createContainer(project, service, ""); err != nil {
 		return fmt.Errorf("failed to start new container for %s: %v", service.Name, err)
 	}
 
@@ -462,7 +462,10 @@ type containerInfo struct {
 		Env    []string
 		Labels map[string]string
 	}
-	Image           string
+	Image string
+	State struct {
+		Status string
+	}
 	NetworkSettings struct {
 		Networks map[string]struct{ Aliases []string }
 	}
@@ -510,7 +513,7 @@ func (d *Deployment) getContainerInfo(service, network string) (*containerInfo, 
 	return nil, fmt.Errorf("no container found with alias %s in network %s", service, network)
 }
 
-func (d *Deployment) startContainer(project string, service *config.Service, suffix string) error {
+func (d *Deployment) createContainer(project string, service *config.Service, suffix string) error {
 	svcName := service.Name
 
 	args := []string{"run", "-d", "--name", svcName + suffix, "--network", project, "--network-alias", svcName + suffix}
@@ -561,6 +564,15 @@ func (d *Deployment) startContainer(project string, service *config.Service, suf
 
 	_, err = d.runCommand(context.Background(), "docker", args...)
 	return err
+}
+
+func (d *Deployment) startContainer(service *config.Service) error {
+	_, err := d.runCommand(context.Background(), "docker", "start", service.Name)
+	if err != nil {
+		return fmt.Errorf("failed to start container for %s: %v", service.Name, err)
+	}
+
+	return nil
 }
 
 func (d *Deployment) performHealthChecks(container string, healthCheck *config.HealthCheck) error {
@@ -767,8 +779,15 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 		if err := d.updateService(project, service); err != nil {
 			return fmt.Errorf("failed to update service %s due to config change: %w", service.Name, err)
 		}
+
+		return nil
 	}
 
+	if containerInfo.State.Status != "running" {
+		if err := d.startContainer(service); err != nil {
+			return fmt.Errorf("failed to start container %s: %w", service.Name, err)
+		}
+	}
 	return nil
 }
 
@@ -1060,7 +1079,7 @@ func (d *Deployment) reloadNginxConfig(ctx context.Context) error {
 func (d *Deployment) deployCertRenewer(project string, cfg *config.Config) error {
 	service := &config.Service{
 		Name:  "certrenewer",
-		Image: "yarlson/zero-nginx",
+		Image: "yarlson/zero-nginx:1.27-alpine3.19-zero0.2.0-0.2",
 		Volumes: []string{
 			"certs:/etc/nginx/ssl",
 			"/var/run/docker.sock:/var/run/docker.sock",
