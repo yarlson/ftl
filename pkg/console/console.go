@@ -76,12 +76,12 @@ func ReadLine() (string, error) {
 
 // ReadPassword reads a password from standard input without echoing.
 func ReadPassword() (string, error) {
-	Input("Password: ")
+	Input("Enter server user password: ")
 	password, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return "", err
 	}
-	Input("\n") // Move to the next line after input
+
 	return string(password), nil
 }
 

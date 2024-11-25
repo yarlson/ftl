@@ -13,7 +13,6 @@ import (
 	"github.com/yarlson/ftl/pkg/server"
 )
 
-// setupCmd represents the setup command
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Prepare servers for deployment",
@@ -45,31 +44,26 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if dockerCreds.Username != "" && dockerCreds.Password != "" {
-		if err := server.DockerLogin(context.Background(), dockerCreds.Username, dockerCreds.Password); err != nil {
-			console.Error("Failed to login to Docker Hub:", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	events := server.SetupServers(ctx, cfg, dockerCreds, newUserPassword)
+
+	spinnerGroup := console.NewSpinnerGroup()
+	defer spinnerGroup.StopAll()
+
+	for event := range events {
+		if err := spinnerGroup.HandleEvent(event); err != nil {
+			console.Error("Setup failed:", err)
 			return
 		}
-	}
-
-	for _, s := range cfg.Servers {
-		if err := setupServer(s, dockerCreds, newUserPassword); err != nil {
-			console.Error(fmt.Sprintf("Failed to setup server %s:", s.Host), err)
-			continue
-		}
-		console.Success(fmt.Sprintf("Successfully set up server %s", s.Host))
 	}
 
 	console.Success("Server setup completed successfully.")
 }
 
-type dockerCredentials struct {
-	Username string
-	Password string
-}
-
-func getDockerCredentials(services []config.Service) (dockerCredentials, error) {
-	var creds dockerCredentials
+func getDockerCredentials(services []config.Service) (server.DockerCredentials, error) {
+	var creds server.DockerCredentials
 
 	if !needDockerHubLogin(services) {
 		return creds, nil
@@ -88,11 +82,10 @@ func getDockerCredentials(services []config.Service) (dockerCredentials, error) 
 	}
 	fmt.Println()
 
-	return dockerCredentials{Username: username, Password: password}, nil
+	return server.DockerCredentials{Username: username, Password: password}, nil
 }
 
 func getUserPassword() (string, error) {
-	console.Input("Enter server user password:")
 	password, err := console.ReadPassword()
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %w", err)
@@ -101,27 +94,12 @@ func getUserPassword() (string, error) {
 	return password, nil
 }
 
-func setupServer(serverConfig config.Server, dockerCreds dockerCredentials, newUserPassword string) error {
-	console.Info(fmt.Sprintf("Setting up server %s...", serverConfig.Host))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	s, err := server.NewServer(&serverConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create server: %w", err)
-	}
-
-	return s.RunSetup(ctx, dockerCreds.Username, dockerCreds.Password)
-}
-
 func needDockerHubLogin(services []config.Service) bool {
 	for _, service := range services {
 		if imageFromDockerHub(service.Image) {
 			return true
 		}
 	}
-
 	return false
 }
 
