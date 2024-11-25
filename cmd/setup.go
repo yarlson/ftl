@@ -121,10 +121,14 @@ func needDockerHubLogin(services []config.Service) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
 func imageFromDockerHub(image string) bool {
+	if image == "" {
+		return false
+	}
 	parts := strings.SplitN(image, "/", 2)
 	return len(parts) == 1 || !strings.Contains(parts[0], ".")
 }
