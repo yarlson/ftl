@@ -11,19 +11,28 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pterm/pterm"
-
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/deployment"
 )
 
-var serviceColors = []pterm.Color{
-	pterm.FgLightBlue,
-	pterm.FgLightGreen,
-	pterm.FgLightCyan,
-	pterm.FgLightMagenta,
-	pterm.FgLightYellow,
-	pterm.FgLightRed,
+// ANSI color codes for service logs
+const (
+	colorReset        = "\033[0m"
+	colorLightBlue    = "\033[94m"
+	colorLightGreen   = "\033[92m"
+	colorLightCyan    = "\033[96m"
+	colorLightMagenta = "\033[95m"
+	colorLightYellow  = "\033[93m"
+	colorLightRed     = "\033[91m"
+)
+
+var serviceColors = []string{
+	colorLightBlue,
+	colorLightGreen,
+	colorLightCyan,
+	colorLightMagenta,
+	colorLightYellow,
+	colorLightRed,
 }
 
 // Logger provides methods to fetch logs from remote services.
@@ -41,7 +50,7 @@ type LogEntry struct {
 	Timestamp time.Time
 	Line      string
 	Service   string
-	Color     pterm.Color
+	Color     string
 }
 
 // LogEntryHeap is a min-heap of LogEntry based on Timestamp
@@ -144,10 +153,7 @@ func (l *Logger) fetchAndSortLogs(ctx context.Context, project string, services 
 
 	// Print the sorted log entries
 	for _, entry := range logEntries {
-		prefixStyle := pterm.NewStyle(entry.Color)
-		messageStyle := pterm.NewStyle(pterm.FgDefault)
-		prefix := fmt.Sprintf("[%s]", entry.Service)
-		formattedLine := fmt.Sprintf("%s %s", prefixStyle.Sprint(prefix), messageStyle.Sprint(entry.Line))
+		formattedLine := fmt.Sprintf("%s[%s]%s %s", entry.Color, entry.Service, colorReset, entry.Line)
 		console.Print(formattedLine)
 	}
 
@@ -258,10 +264,7 @@ func (l *Logger) streamLogs(ctx context.Context, project string, services []stri
 
 		// Pop the earliest log entry and print it
 		entry := heap.Pop(h).(LogEntry)
-		prefixStyle := pterm.NewStyle(entry.Color)
-		messageStyle := pterm.NewStyle(pterm.FgDefault)
-		prefix := fmt.Sprintf("[%s]", entry.Service)
-		formattedLine := fmt.Sprintf("%s %s", prefixStyle.Sprint(prefix), messageStyle.Sprint(entry.Line))
+		formattedLine := fmt.Sprintf("%s[%s]%s %s", entry.Color, entry.Service, colorReset, entry.Line)
 		console.Print(formattedLine)
 	}
 
@@ -271,7 +274,7 @@ func (l *Logger) streamLogs(ctx context.Context, project string, services []stri
 }
 
 // parseLogLine parses a log line with a timestamp
-func parseLogLine(line, service string, color pterm.Color) (LogEntry, error) {
+func parseLogLine(line, service string, color string) (LogEntry, error) {
 	// Expected format: "<timestamp> <log message>"
 	idx := strings.Index(line, " ")
 	if idx == -1 {
@@ -294,8 +297,8 @@ func parseLogLine(line, service string, color pterm.Color) (LogEntry, error) {
 }
 
 // assignColorsToServices assigns colors to services
-func assignColorsToServices(services []string) map[string]pterm.Color {
-	serviceColorMap := make(map[string]pterm.Color)
+func assignColorsToServices(services []string) map[string]string {
+	serviceColorMap := make(map[string]string)
 	for i, service := range services {
 		color := serviceColors[i%len(serviceColors)]
 		serviceColorMap[service] = color

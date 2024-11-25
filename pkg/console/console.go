@@ -7,61 +7,43 @@ import (
 	"strings"
 
 	"golang.org/x/term"
+)
 
-	"github.com/pterm/pterm"
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
 )
 
 // Info prints an information message.
 func Info(a ...interface{}) {
-	infoPrinter.Println(a...)
-}
-
-var infoPrinter = &pterm.PrefixPrinter{
-	Prefix: pterm.Prefix{
-		Style: &pterm.ThemeDefault.InfoMessageStyle,
-		Text:  " ",
-	},
+	message := fmt.Sprint(a...)
+	fmt.Printf("  %s\n", message)
 }
 
 // Success prints a success message.
 func Success(a ...interface{}) {
-	successPrinter.Println(a...)
-}
-
-var successPrinter = &pterm.PrefixPrinter{
-	Prefix: pterm.Prefix{
-		Style: &pterm.ThemeDefault.SuccessMessageStyle,
-		Text:  "√",
-	},
+	message := fmt.Sprint(a...)
+	fmt.Printf("%s✔%s %s\n", colorGreen, colorReset, message)
 }
 
 // Warning prints a warning message.
 func Warning(a ...interface{}) {
-	warningPrinter.Println(a...)
-}
-
-var warningPrinter = &pterm.PrefixPrinter{
-	Prefix: pterm.Prefix{
-		Style: &pterm.ThemeDefault.WarningMessageStyle,
-		Text:  "!",
-	},
+	message := fmt.Sprint(a...)
+	fmt.Printf("%s!%s %s\n", colorYellow, colorReset, message)
 }
 
 // Error prints an error message with a newline.
 func Error(a ...interface{}) {
-	errorPrinter.Println(a...)
-}
-
-var errorPrinter = &pterm.PrefixPrinter{
-	Prefix: pterm.Prefix{
-		Style: &pterm.ThemeDefault.ErrorMessageStyle,
-		Text:  "✘",
-	},
+	message := fmt.Sprint(a...)
+	fmt.Printf("%s✘%s %s\n", colorRed, colorReset, message)
 }
 
 // Input prints an input prompt.
 func Input(a ...interface{}) {
-	pterm.FgYellow.Print(a...)
+	message := fmt.Sprint(a...)
+	fmt.Printf("%s%s%s", colorYellow, message, colorReset)
 }
 
 // ReadLine reads a line from standard input.

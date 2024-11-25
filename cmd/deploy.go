@@ -37,7 +37,7 @@ func runDeploy(cmd *cobra.Command, args []string) {
 	}
 
 	if err := deployToServers(cfg); err != nil {
-		console.Error("Deployment failed:", err)
+		console.Error("Deployment failed")
 		return
 	}
 }
