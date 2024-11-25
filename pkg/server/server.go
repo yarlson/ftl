@@ -16,6 +16,7 @@ import (
 	"github.com/yarlson/ftl/pkg/ssh"
 )
 
+// DockerCredentials holds the username and password for Docker authentication.
 type DockerCredentials struct {
 	Username string
 	Password string
@@ -24,48 +25,50 @@ type DockerCredentials struct {
 // SetupServers performs the setup on all servers concurrently and returns a channel of events.
 func SetupServers(ctx context.Context, cfg *config.Config, dockerCreds DockerCredentials, newUserPassword string) <-chan console.Event {
 	events := make(chan console.Event)
+
 	go func() {
 		defer close(events)
-
 		var wg sync.WaitGroup
-		for _, srvConfig := range cfg.Servers {
-			wg.Add(1)
-			go func(srvConfig config.Server) {
-				defer wg.Done()
-				hostname := srvConfig.Host
 
-				if err := setupServer(ctx, srvConfig, dockerCreds, newUserPassword, events); err != nil {
+		for _, server := range cfg.Servers {
+			wg.Add(1)
+			go func(server config.Server) {
+				defer wg.Done()
+				host := server.Host
+
+				if err := setupServer(ctx, server, dockerCreds, newUserPassword, events); err != nil {
 					events <- console.Event{
 						Type:    console.EventTypeError,
-						Message: fmt.Sprintf("[%s] Setup failed: %v", hostname, err),
-						Name:    hostname,
+						Message: fmt.Sprintf("[%s] Setup failed: %v", host, err),
+						Name:    host,
 					}
 					return
 				}
 
 				events <- console.Event{
 					Type:    console.EventTypeFinish,
-					Message: fmt.Sprintf("[%s] Setup completed successfully", hostname),
-					Name:    hostname,
+					Message: fmt.Sprintf("[%s] Setup completed successfully", host),
+					Name:    host,
 				}
-			}(srvConfig)
+			}(server)
 		}
 		wg.Wait()
 	}()
+
 	return events
 }
 
-func setupServer(ctx context.Context, srvConfig config.Server, dockerCreds DockerCredentials, newUserPassword string, events chan<- console.Event) error {
-	hostname := srvConfig.Host
+func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCredentials, newUserPassword string, events chan<- console.Event) error {
+	host := server.Host
 
-	sshClient, rootKey, err := ssh.FindKeyAndConnectWithUser(srvConfig.Host, srvConfig.Port, "root", srvConfig.SSHKey)
+	sshClient, rootKey, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, "root", server.SSHKey)
 	if err != nil {
 		return fmt.Errorf("failed to connect via SSH: %w", err)
 	}
 	defer sshClient.Close()
 
 	runner := remote.NewRunner(sshClient)
-	srvConfig.RootSSHKey = string(rootKey)
+	server.RootSSHKey = string(rootKey)
 
 	tasks := []struct {
 		name   string
@@ -76,16 +79,16 @@ func setupServer(ctx context.Context, srvConfig config.Server, dockerCreds Docke
 			action: func() error {
 				events <- console.Event{
 					Type:    console.EventTypeStart,
-					Message: fmt.Sprintf("[%s] Installing software", hostname),
-					Name:    "install_software",
+					Message: fmt.Sprintf("[%s] Installing software", host),
+					Name:    "installSoftware",
 				}
-				if err := installServerSoftware(ctx, runner); err != nil {
+				if err := installSoftware(ctx, runner); err != nil {
 					return err
 				}
 				events <- console.Event{
 					Type:    console.EventTypeFinish,
-					Message: fmt.Sprintf("[%s] Software installed", hostname),
-					Name:    "install_software",
+					Message: fmt.Sprintf("[%s] Software installed", host),
+					Name:    "installSoftware",
 				}
 				return nil
 			},
@@ -95,16 +98,16 @@ func setupServer(ctx context.Context, srvConfig config.Server, dockerCreds Docke
 			action: func() error {
 				events <- console.Event{
 					Type:    console.EventTypeStart,
-					Message: fmt.Sprintf("[%s] Configuring firewall", hostname),
-					Name:    "configure_firewall",
+					Message: fmt.Sprintf("[%s] Configuring firewall", host),
+					Name:    "configureFirewall",
 				}
-				if err := configureServerFirewall(ctx, runner); err != nil {
+				if err := configureFirewall(ctx, runner); err != nil {
 					return err
 				}
 				events <- console.Event{
 					Type:    console.EventTypeFinish,
-					Message: fmt.Sprintf("[%s] Firewall configured", hostname),
-					Name:    "configure_firewall",
+					Message: fmt.Sprintf("[%s] Firewall configured", host),
+					Name:    "configureFirewall",
 				}
 				return nil
 			},
@@ -114,16 +117,16 @@ func setupServer(ctx context.Context, srvConfig config.Server, dockerCreds Docke
 			action: func() error {
 				events <- console.Event{
 					Type:    console.EventTypeStart,
-					Message: fmt.Sprintf("[%s] Creating user %s", hostname, srvConfig.User),
-					Name:    "create_user",
+					Message: fmt.Sprintf("[%s] Creating user %s", host, server.User),
+					Name:    "createUser",
 				}
-				if err := createServerUser(ctx, runner, srvConfig.User, newUserPassword); err != nil {
+				if err := createUser(ctx, runner, server.User, newUserPassword); err != nil {
 					return err
 				}
 				events <- console.Event{
 					Type:    console.EventTypeFinish,
-					Message: fmt.Sprintf("[%s] User %s created", hostname, srvConfig.User),
-					Name:    "create_user",
+					Message: fmt.Sprintf("[%s] User %s created", host, server.User),
+					Name:    "createUser",
 				}
 				return nil
 			},
@@ -133,16 +136,16 @@ func setupServer(ctx context.Context, srvConfig config.Server, dockerCreds Docke
 			action: func() error {
 				events <- console.Event{
 					Type:    console.EventTypeStart,
-					Message: fmt.Sprintf("[%s] Setting up SSH key", hostname),
-					Name:    "setup_ssh_key",
+					Message: fmt.Sprintf("[%s] Setting up SSH key", host),
+					Name:    "setupSSHKey",
 				}
-				if err := setupServerSSHKey(ctx, runner, srvConfig); err != nil {
+				if err := setupSSHKey(ctx, runner, server); err != nil {
 					return err
 				}
 				events <- console.Event{
 					Type:    console.EventTypeFinish,
-					Message: fmt.Sprintf("[%s] SSH key set up", hostname),
-					Name:    "setup_ssh_key",
+					Message: fmt.Sprintf("[%s] SSH key set up", host),
+					Name:    "setupSSHKey",
 				}
 				return nil
 			},
@@ -153,16 +156,16 @@ func setupServer(ctx context.Context, srvConfig config.Server, dockerCreds Docke
 				if dockerCreds.Username != "" && dockerCreds.Password != "" {
 					events <- console.Event{
 						Type:    console.EventTypeStart,
-						Message: fmt.Sprintf("[%s] Logging into Docker Hub", hostname),
-						Name:    "docker_login",
+						Message: fmt.Sprintf("[%s] Logging into Docker Hub", host),
+						Name:    "dockerLogin",
 					}
 					if err := dockerLogin(ctx, runner, dockerCreds); err != nil {
 						return err
 					}
 					events <- console.Event{
 						Type:    console.EventTypeFinish,
-						Message: fmt.Sprintf("[%s] Logged into Docker Hub", hostname),
-						Name:    "docker_login",
+						Message: fmt.Sprintf("[%s] Logged into Docker Hub", host),
+						Name:    "dockerLogin",
 					}
 				}
 				return nil
@@ -184,19 +187,19 @@ func setupServer(ctx context.Context, srvConfig config.Server, dockerCreds Docke
 	return nil
 }
 
-func installServerSoftware(ctx context.Context, runner *remote.Runner) error {
+func installSoftware(ctx context.Context, runner *remote.Runner) error {
 	commands := []string{
 		"apt-get update",
 		"apt-get install -y apt-transport-https ca-certificates curl wget git software-properties-common",
 		"curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -",
-		"add-apt-repository \"deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable\" -y",
+		`add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" -y`,
 		"apt-get update",
 		"apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
 	}
 	return runner.RunCommands(ctx, commands)
 }
 
-func configureServerFirewall(ctx context.Context, runner *remote.Runner) error {
+func configureFirewall(ctx context.Context, runner *remote.Runner) error {
 	commands := []string{
 		"apt-get install -y ufw",
 		"ufw default deny incoming",
@@ -204,43 +207,44 @@ func configureServerFirewall(ctx context.Context, runner *remote.Runner) error {
 		"ufw allow 22/tcp",
 		"ufw allow 80/tcp",
 		"ufw allow 443/tcp",
-		"echo 'y' | ufw enable",
+		`echo "y" | ufw enable`,
 	}
 	return runner.RunCommands(ctx, commands)
 }
 
-func createServerUser(ctx context.Context, runner *remote.Runner, username, password string) error {
-	checkUserCmd := fmt.Sprintf("id -u %s > /dev/null 2>&1", username)
+func createUser(ctx context.Context, runner *remote.Runner, user, password string) error {
+	checkUserCmd := fmt.Sprintf("id -u %s", user)
 	if _, err := runner.RunCommand(ctx, checkUserCmd); err == nil {
+		// User already exists
 		return nil
 	}
 
 	commands := []string{
-		fmt.Sprintf("adduser --gecos '' --disabled-password %s", username),
-		fmt.Sprintf("echo '%s:%s' | chpasswd", username, password),
-		fmt.Sprintf("usermod -aG docker %s", username),
+		fmt.Sprintf("adduser --gecos '' --disabled-password %s", user),
+		fmt.Sprintf("echo '%s:%s' | chpasswd", user, password),
+		fmt.Sprintf("usermod -aG docker %s", user),
 	}
 	return runner.RunCommands(ctx, commands)
 }
 
-func setupServerSSHKey(ctx context.Context, runner *remote.Runner, srvConfig config.Server) error {
-	keyData, err := readSSHKey(srvConfig.SSHKey)
+func setupSSHKey(ctx context.Context, runner *remote.Runner, server config.Server) error {
+	keyData, err := readSSHKey(server.SSHKey)
 	if err != nil {
 		return err
 	}
 
-	pubKey, err := parsePublicKey(keyData)
+	publicKey, err := parsePublicKey(keyData)
 	if err != nil {
 		return err
 	}
 
-	user := srvConfig.User
+	user := server.User
 	sshDir := fmt.Sprintf("/home/%s/.ssh", user)
-	authKeysFile := fmt.Sprintf("%s/authorized_keys", sshDir)
+	authKeysFile := filepath.Join(sshDir, "authorized_keys")
 
 	commands := []string{
 		fmt.Sprintf("mkdir -p %s", sshDir),
-		fmt.Sprintf("echo '%s' | tee -a %s", pubKey, authKeysFile),
+		fmt.Sprintf("echo '%s' | tee -a %s", publicKey, authKeysFile),
 		fmt.Sprintf("chown -R %s:%s %s", user, user, sshDir),
 		fmt.Sprintf("chmod 700 %s", sshDir),
 		fmt.Sprintf("chmod 600 %s", authKeysFile),
@@ -249,7 +253,7 @@ func setupServerSSHKey(ctx context.Context, runner *remote.Runner, srvConfig con
 }
 
 func dockerLogin(ctx context.Context, runner *remote.Runner, creds DockerCredentials) error {
-	command := fmt.Sprintf("docker login -u %s -p %s", creds.Username, creds.Password)
+	command := fmt.Sprintf("echo '%s' | docker login -u %s --password-stdin", creds.Password, creds.Username)
 	_, err := runner.RunCommand(ctx, command)
 	return err
 }
@@ -266,9 +270,9 @@ func readSSHKey(keyPath string) ([]byte, error) {
 }
 
 func parsePublicKey(keyData []byte) (string, error) {
-	privKey, err := gossh.ParsePrivateKey(keyData)
+	privateKey, err := gossh.ParsePrivateKey(keyData)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse private key: %w", err)
 	}
-	return string(gossh.MarshalAuthorizedKey(privKey.PublicKey())), nil
+	return string(gossh.MarshalAuthorizedKey(privateKey.PublicKey())), nil
 }
