@@ -93,7 +93,7 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 
 	events := deploy.Deploy(ctx, project, cfg)
 
-	spinnerGroup := console.NewSpinnerGroup()
+	spinnerGroup := console.NewGroup()
 	defer spinnerGroup.StopAll()
 
 	for event := range events {

@@ -9,259 +9,276 @@ import (
 	"time"
 )
 
-// ANSI control codes
-const (
-	hideCursor   = "\033[?25l"
-	showCursor   = "\033[?25h"
-	clearLine    = "\r\033[K"
-	windowsHide  = "\x1b[?25l"
-	windowsShow  = "\x1b[?25h"
-	windowsClear = "\r\x1b[K"
-)
-
-// EventType represents the type of spinner event
-type EventType string
-
-const (
-	EventTypeStart    EventType = "start"
-	EventTypeProgress EventType = "progress"
-	EventTypeFinish   EventType = "finish"
-	EventTypeComplete EventType = "complete"
-	EventTypeError    EventType = "error"
-)
-
-// Event represents a spinner event
+// Event represents the type of spinner event.
 type Event struct {
 	Type    EventType
 	Name    string
 	Message string
 }
 
-// Spinner represents an animated loading indicator
+// EventType defines the possible states of a spinner.
+type EventType string
+
+const (
+	EventStart    EventType = "start"
+	EventProgress EventType = "progress"
+	EventFinish   EventType = "finish"
+	EventComplete EventType = "complete"
+	EventError    EventType = "error"
+)
+
+const (
+	defaultDelay = 200 * time.Millisecond
+)
+
+// terminal control sequences
+const (
+	escHideCursor = "\033[?25l"
+	escShowCursor = "\033[?25h"
+	escClearLine  = "\r\033[K"
+	// Windows-specific sequences
+	winHideCursor = "\x1b[?25l"
+	winShowCursor = "\x1b[?25h"
+	winClearLine  = "\r\x1b[K"
+)
+
+// Spinner represents an animated loading indicator.
 type Spinner struct {
-	chars     []string
-	index     int
-	lastWrite time.Time
+	frames    []string
 	done      string
+	curr      int
+	lastWrite time.Time
 	delay     time.Duration
-	writer    io.Writer
-	message   string
-	mutex     sync.Mutex
-	stopChan  chan struct{}
+	w         io.Writer
+	msg       string
+	mu        sync.Mutex
+	stop      chan struct{}
 	stopped   bool
-	isWindows bool
+	isWin     bool
 }
 
-// NewSpinner creates a new spinner with default settings
-func NewSpinner(initialText string) *Spinner {
-	return NewSpinnerWithWriter(initialText, os.Stdout)
+// New creates a new spinner with default settings writing to os.Stdout.
+func New(msg string) *Spinner {
+	return NewWithWriter(msg, os.Stdout)
 }
 
-// NewSpinnerWithWriter creates a new spinner with a custom writer
-func NewSpinnerWithWriter(initialText string, writer io.Writer) *Spinner {
-	chars := []string{
-		"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
-	}
+// NewWithWriter creates a new spinner that writes to the provided writer.
+func NewWithWriter(msg string, w io.Writer) *Spinner {
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	done := "⠿"
 
-	isWindows := runtime.GOOS == "windows"
-	if isWindows {
-		chars = []string{"-", "\\", "|", "/"}
+	isWin := runtime.GOOS == "windows"
+	if isWin {
+		frames = []string{"-", "\\", "|", "/"}
 		done = "-"
 	}
 
 	return &Spinner{
-		chars:     chars,
-		index:     0,
-		lastWrite: time.Now(),
-		done:      done,
-		delay:     200 * time.Millisecond,
-		writer:    writer,
-		message:   initialText,
-		stopChan:  make(chan struct{}),
-		isWindows: isWindows,
+		frames: frames,
+		done:   done,
+		delay:  defaultDelay,
+		w:      w,
+		msg:    msg,
+		stop:   make(chan struct{}),
+		isWin:  isWin,
 	}
 }
 
-func (s *Spinner) hideCursor() {
-	if s.isWindows {
-		_, _ = fmt.Fprint(s.writer, windowsHide)
-	} else {
-		_, _ = fmt.Fprint(s.writer, hideCursor)
-	}
-}
-
-func (s *Spinner) showCursor() {
-	if s.isWindows {
-		_, _ = fmt.Fprint(s.writer, windowsShow)
-	} else {
-		_, _ = fmt.Fprint(s.writer, showCursor)
-	}
-}
-
-func (s *Spinner) clearLine() {
-	if s.isWindows {
-		_, _ = fmt.Fprint(s.writer, windowsClear)
-	} else {
-		_, _ = fmt.Fprint(s.writer, clearLine)
-	}
-}
-
-// Start begins the spinner animation
-func (s *Spinner) Start(text string) (*Spinner, error) {
-	s.mutex.Lock()
+// Start begins the spinner animation.
+func (s *Spinner) Start(msg string) (*Spinner, error) {
+	s.mu.Lock()
 	if s.stopped {
-		s.mutex.Unlock()
+		s.mu.Unlock()
 		return s, nil
 	}
-	s.message = text
-	s.stopChan = make(chan struct{})
+	s.msg = msg
+	s.stop = make(chan struct{})
 	s.hideCursor()
-	s.mutex.Unlock()
+	s.mu.Unlock()
 
-	go func() {
-		ticker := time.NewTicker(s.delay)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-s.stopChan:
-				return
-			case <-ticker.C:
-				s.mutex.Lock()
-				s.clearLine()
-				s.write()
-				s.mutex.Unlock()
-			}
-		}
-	}()
-
+	go s.run()
 	return s, nil
 }
 
-// Stop halts the spinner animation
-func (s *Spinner) Stop() error {
-	s.mutex.Lock()
-	if !s.stopped {
-		s.stopped = true
-		close(s.stopChan)
-		s.clearLine()
-		s.showCursor()
+func (s *Spinner) run() {
+	ticker := time.NewTicker(s.delay)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.stop:
+			return
+		case <-ticker.C:
+			s.mu.Lock()
+			s.clearLine()
+			s.write()
+			s.mu.Unlock()
+		}
 	}
-	s.mutex.Unlock()
+}
+
+// Stop halts the spinner animation.
+func (s *Spinner) Stop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.stopped {
+		return nil
+	}
+
+	s.stopped = true
+	close(s.stop)
+	s.clearLine()
+	s.showCursor()
 	return nil
 }
 
-// UpdateText changes the spinner message
-func (s *Spinner) UpdateText(text string) {
-	s.mutex.Lock()
-	s.message = text
+// UpdateMessage changes the spinner message.
+func (s *Spinner) UpdateMessage(msg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.msg = msg
 	s.clearLine()
 	s.write()
-	s.mutex.Unlock()
 }
 
-// Success displays a success message and stops the spinner
-func (s *Spinner) Success(text string) {
-	s.mutex.Lock()
-	if !s.stopped {
-		s.stopped = true
-		close(s.stopChan)
-		s.clearLine()
-		_, _ = fmt.Fprintf(s.writer, "%s✔%s %s\n", colorGreen, colorReset, text)
-		s.showCursor()
+// Success displays a success message and stops the spinner.
+func (s *Spinner) Success(msg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.stopped {
+		return
 	}
-	s.mutex.Unlock()
+
+	s.stopped = true
+	close(s.stop)
+	s.clearLine()
+	_, _ = fmt.Fprintf(s.w, "%s✔%s %s\n", colorGreen, colorReset, msg)
+	s.showCursor()
 }
 
-// Fail displays an error message and stops the spinner
-func (s *Spinner) Fail(text string) {
-	s.mutex.Lock()
-	if !s.stopped {
-		s.stopped = true
-		close(s.stopChan)
-		s.clearLine()
-		_, _ = fmt.Fprintf(s.writer, "%s✘%s %s\n", colorRed, colorReset, text)
-		s.showCursor()
+// Fail displays an error message and stops the spinner.
+func (s *Spinner) Fail(msg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.stopped {
+		return
 	}
-	s.mutex.Unlock()
+
+	s.stopped = true
+	close(s.stop)
+	s.clearLine()
+	_, _ = fmt.Fprintf(s.w, "%s✘%s %s\n", colorRed, colorReset, msg)
+	s.showCursor()
 }
 
-// SpinnerGroup manages multiple spinners
-type SpinnerGroup struct {
+// Group manages multiple concurrent spinners.
+type Group struct {
 	spinners map[string]*Spinner
-	mutex    sync.Mutex
+	mu       sync.Mutex
 }
 
-// NewSpinnerGroup creates a new SpinnerGroup
-func NewSpinnerGroup() *SpinnerGroup {
-	return &SpinnerGroup{
+// NewGroup creates a new spinner group.
+func NewGroup() *Group {
+	return &Group{
 		spinners: make(map[string]*Spinner),
 	}
 }
 
-// RunWithSpinner executes an action while displaying a spinner
-func (sg *SpinnerGroup) RunWithSpinner(message string, action func() error, successMessage string) error {
-	spinner := NewSpinner(message)
-	_, _ = spinner.Start(message)
-	defer func() { _ = spinner.Stop() }()
+// RunWithSpinner executes an action while displaying a spinner.
+func (g *Group) RunWithSpinner(msg string, action func() error, successMsg string) error {
+	s := New(msg)
+	if _, err := s.Start(msg); err != nil {
+		return fmt.Errorf("failed to start spinner: %w", err)
+	}
+	defer func() { _ = s.Stop() }()
 
 	if err := action(); err != nil {
-		spinner.Fail(fmt.Sprintf("Failed: %s", err))
+		s.Fail(fmt.Sprintf("Failed: %v", err))
 		return err
 	}
 
-	spinner.Success(successMessage)
+	s.Success(successMsg)
 	return nil
 }
 
-// HandleEvent processes spinner events
-func (sg *SpinnerGroup) HandleEvent(event Event) error {
-	sg.mutex.Lock()
-	defer sg.mutex.Unlock()
+// HandleEvent processes spinner events.
+func (g *Group) HandleEvent(e Event) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
-	switch event.Type {
-	case EventTypeStart:
-		spinner := NewSpinner(event.Message)
-		_, _ = spinner.Start(event.Message)
-		sg.spinners[event.Name] = spinner
+	switch e.Type {
+	case EventStart:
+		s := New(e.Message)
+		if _, err := s.Start(e.Message); err != nil {
+			return fmt.Errorf("failed to start spinner: %w", err)
+		}
+		g.spinners[e.Name] = s
 
-	case EventTypeProgress:
-		if spinner, ok := sg.spinners[event.Name]; ok {
-			spinner.UpdateText(event.Message)
+	case EventProgress:
+		if s, ok := g.spinners[e.Name]; ok {
+			s.UpdateMessage(e.Message)
 		}
 
-	case EventTypeFinish, EventTypeComplete:
-		if spinner, ok := sg.spinners[event.Name]; ok {
-			spinner.Success(event.Message)
-			delete(sg.spinners, event.Name)
+	case EventFinish, EventComplete:
+		if s, ok := g.spinners[e.Name]; ok {
+			s.Success(e.Message)
+			delete(g.spinners, e.Name)
 		}
 
-	case EventTypeError:
-		if spinner, ok := sg.spinners[event.Name]; ok {
-			spinner.Fail(event.Message)
-			delete(sg.spinners, event.Name)
+	case EventError:
+		if s, ok := g.spinners[e.Name]; ok {
+			s.Fail(e.Message)
+			delete(g.spinners, e.Name)
+			return fmt.Errorf("error: %s", e.Message)
 		}
-		return fmt.Errorf("error: %s", event.Message)
 	}
 
 	return nil
 }
 
-// StopAll stops all active spinners
-func (sg *SpinnerGroup) StopAll() {
-	sg.mutex.Lock()
-	defer sg.mutex.Unlock()
+// StopAll stops all active spinners in the group.
+func (g *Group) StopAll() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
-	for _, spinner := range sg.spinners {
-		_ = spinner.Stop()
+	for _, s := range g.spinners {
+		_ = s.Stop()
 	}
+}
+
+// Terminal control methods
+func (s *Spinner) hideCursor() {
+	if s.isWin {
+		_, _ = fmt.Fprint(s.w, winHideCursor)
+		return
+	}
+	_, _ = fmt.Fprint(s.w, escHideCursor)
+}
+
+func (s *Spinner) showCursor() {
+	if s.isWin {
+		_, _ = fmt.Fprint(s.w, winShowCursor)
+		return
+	}
+	_, _ = fmt.Fprint(s.w, escShowCursor)
+}
+
+func (s *Spinner) clearLine() {
+	if s.isWin {
+		_, _ = fmt.Fprint(s.w, winClearLine)
+		return
+	}
+	_, _ = fmt.Fprint(s.w, escClearLine)
 }
 
 func (s *Spinner) write() {
 	if time.Since(s.lastWrite) > s.delay {
-		s.index = (s.index + 1) % len(s.chars)
+		s.curr = (s.curr + 1) % len(s.frames)
 		s.lastWrite = time.Now()
 	}
-	_, _ = fmt.Fprintf(s.writer, "%s%s%s %s", colorYellow, s.chars[s.index], colorReset, s.message)
+	_, _ = fmt.Fprintf(s.w, "%s%s%s %s", colorYellow, s.frames[s.curr], colorReset, s.msg)
 }

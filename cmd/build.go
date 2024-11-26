@@ -58,7 +58,7 @@ func buildAndPushServices(ctx context.Context, project string, services []config
 	eventChan := make(chan console.Event)
 	done := make(chan struct{})
 
-	spinnerGroup := console.NewSpinnerGroup()
+	spinnerGroup := console.NewGroup()
 	defer spinnerGroup.StopAll()
 
 	go func() {
@@ -81,13 +81,13 @@ func buildAndPushServices(ctx context.Context, project string, services []config
 			}
 
 			eventChan <- console.Event{
-				Type:    console.EventTypeStart,
+				Type:    console.EventStart,
 				Message: fmt.Sprintf("Building service %s", serviceName),
 				Name:    serviceName,
 			}
 			if err := builder.Build(ctx, image, svc.Path); err != nil {
 				eventChan <- console.Event{
-					Type:    console.EventTypeError,
+					Type:    console.EventError,
 					Message: fmt.Sprintf("Failed to build service %s: %v", serviceName, err),
 					Name:    serviceName,
 				}
@@ -95,7 +95,7 @@ func buildAndPushServices(ctx context.Context, project string, services []config
 				return
 			}
 			eventChan <- console.Event{
-				Type:    console.EventTypeFinish,
+				Type:    console.EventFinish,
 				Message: fmt.Sprintf("Service %s built successfully", serviceName),
 				Name:    serviceName,
 			}
@@ -105,13 +105,13 @@ func buildAndPushServices(ctx context.Context, project string, services []config
 			}
 
 			eventChan <- console.Event{
-				Type:    console.EventTypeStart,
+				Type:    console.EventStart,
 				Message: fmt.Sprintf("Pushing service %s", serviceName),
 				Name:    serviceName,
 			}
 			if err := builder.Push(ctx, svc.Image); err != nil {
 				eventChan <- console.Event{
-					Type:    console.EventTypeError,
+					Type:    console.EventError,
 					Message: fmt.Sprintf("Failed to push service %s: %v", serviceName, err),
 					Name:    serviceName,
 				}
@@ -119,7 +119,7 @@ func buildAndPushServices(ctx context.Context, project string, services []config
 				return
 			}
 			eventChan <- console.Event{
-				Type:    console.EventTypeFinish,
+				Type:    console.EventFinish,
 				Message: fmt.Sprintf("Service %s pushed successfully", serviceName),
 				Name:    serviceName,
 			}

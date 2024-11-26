@@ -38,7 +38,7 @@ func SetupServers(ctx context.Context, cfg *config.Config, dockerCreds DockerCre
 
 				if err := setupServer(ctx, server, dockerCreds, newUserPassword, events); err != nil {
 					events <- console.Event{
-						Type:    console.EventTypeError,
+						Type:    console.EventError,
 						Message: fmt.Sprintf("[%s] Setup failed: %v", host, err),
 						Name:    host,
 					}
@@ -46,7 +46,7 @@ func SetupServers(ctx context.Context, cfg *config.Config, dockerCreds DockerCre
 				}
 
 				events <- console.Event{
-					Type:    console.EventTypeFinish,
+					Type:    console.EventFinish,
 					Message: fmt.Sprintf("[%s] Setup completed successfully", host),
 					Name:    host,
 				}
@@ -78,7 +78,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 			name: "Install Software",
 			action: func() error {
 				events <- console.Event{
-					Type:    console.EventTypeStart,
+					Type:    console.EventStart,
 					Message: fmt.Sprintf("[%s] Installing software", host),
 					Name:    "installSoftware",
 				}
@@ -86,7 +86,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 					return err
 				}
 				events <- console.Event{
-					Type:    console.EventTypeFinish,
+					Type:    console.EventFinish,
 					Message: fmt.Sprintf("[%s] Software installed", host),
 					Name:    "installSoftware",
 				}
@@ -97,7 +97,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 			name: "Configure Firewall",
 			action: func() error {
 				events <- console.Event{
-					Type:    console.EventTypeStart,
+					Type:    console.EventStart,
 					Message: fmt.Sprintf("[%s] Configuring firewall", host),
 					Name:    "configureFirewall",
 				}
@@ -105,7 +105,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 					return err
 				}
 				events <- console.Event{
-					Type:    console.EventTypeFinish,
+					Type:    console.EventFinish,
 					Message: fmt.Sprintf("[%s] Firewall configured", host),
 					Name:    "configureFirewall",
 				}
@@ -116,7 +116,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 			name: "Create User",
 			action: func() error {
 				events <- console.Event{
-					Type:    console.EventTypeStart,
+					Type:    console.EventStart,
 					Message: fmt.Sprintf("[%s] Creating user %s", host, server.User),
 					Name:    "createUser",
 				}
@@ -124,7 +124,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 					return err
 				}
 				events <- console.Event{
-					Type:    console.EventTypeFinish,
+					Type:    console.EventFinish,
 					Message: fmt.Sprintf("[%s] User %s created", host, server.User),
 					Name:    "createUser",
 				}
@@ -135,7 +135,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 			name: "Setup SSH Key",
 			action: func() error {
 				events <- console.Event{
-					Type:    console.EventTypeStart,
+					Type:    console.EventStart,
 					Message: fmt.Sprintf("[%s] Setting up SSH key", host),
 					Name:    "setupSSHKey",
 				}
@@ -143,7 +143,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 					return err
 				}
 				events <- console.Event{
-					Type:    console.EventTypeFinish,
+					Type:    console.EventFinish,
 					Message: fmt.Sprintf("[%s] SSH key set up", host),
 					Name:    "setupSSHKey",
 				}
@@ -155,7 +155,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 			action: func() error {
 				if dockerCreds.Username != "" && dockerCreds.Password != "" {
 					events <- console.Event{
-						Type:    console.EventTypeStart,
+						Type:    console.EventStart,
 						Message: fmt.Sprintf("[%s] Logging into Docker Hub", host),
 						Name:    "dockerLogin",
 					}
@@ -163,7 +163,7 @@ func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCr
 						return err
 					}
 					events <- console.Event{
-						Type:    console.EventTypeFinish,
+						Type:    console.EventFinish,
 						Message: fmt.Sprintf("[%s] Logged into Docker Hub", host),
 						Name:    "dockerLogin",
 					}

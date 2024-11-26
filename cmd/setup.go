@@ -49,7 +49,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 
 	events := server.SetupServers(ctx, cfg, dockerCreds, newUserPassword)
 
-	spinnerGroup := console.NewSpinnerGroup()
+	spinnerGroup := console.NewGroup()
 	defer spinnerGroup.StopAll()
 
 	for event := range events {

@@ -145,7 +145,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		events := suite.deployment.Deploy(ctx, project, cfg)
 		for event := range events {
 			suite.T().Logf("Event: %s", event)
-			if event.Type == console.EventTypeError {
+			if event.Type == console.EventError {
 				suite.Require().Fail(event.Message, "Deployment error %s", event.Message)
 				return
 			}
@@ -197,7 +197,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		events = suite.deployment.Deploy(ctx, project, cfg)
 		for event := range events {
 			suite.T().Logf("Event: %s", event)
-			if event.Type == console.EventTypeError {
+			if event.Type == console.EventError {
 				suite.Require().Fail(event.Message, "Deployment error %s", event.Message)
 				return
 			}
