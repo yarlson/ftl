@@ -587,7 +587,13 @@ func (d *Deployment) performHealthChecks(container string, healthCheck *config.H
 		}
 		time.Sleep(healthCheck.Interval)
 	}
-	return fmt.Errorf("container failed to become healthy")
+
+	output, err := d.runCommand(context.Background(), "docker", "logs", container)
+	if err != nil {
+		return fmt.Errorf("failed to get container logs: %v", err)
+	}
+
+	return fmt.Errorf("container failed to become healthy\n---\n%s\n---", output)
 }
 
 func (d *Deployment) switchTraffic(project, service string) (string, error) {
