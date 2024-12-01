@@ -22,166 +22,90 @@ type DockerCredentials struct {
 	Password string
 }
 
-// SetupServers performs the setup on all servers concurrently and returns a channel of events.
-func SetupServers(ctx context.Context, cfg *config.Config, dockerCreds DockerCredentials, newUserPassword string) <-chan console.Event {
-	events := make(chan console.Event)
+// SetupServers performs the setup on all servers concurrently.
+func SetupServers(ctx context.Context, cfg *config.Config, dockerCreds DockerCredentials, newUserPassword string, sm *console.SpinnerManager) error {
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(cfg.Servers))
 
-	go func() {
-		defer close(events)
-		var wg sync.WaitGroup
+	for _, server := range cfg.Servers {
+		wg.Add(1)
+		go func(server config.Server) {
+			defer wg.Done()
 
-		for _, server := range cfg.Servers {
-			wg.Add(1)
-			go func(server config.Server) {
-				defer wg.Done()
-				host := server.Host
+			if err := setupServer(ctx, server, dockerCreds, newUserPassword, sm); err != nil {
+				errChan <- fmt.Errorf("[%s] Setup failed: %w", server.Host, err)
+				return
+			}
+		}(server)
+	}
 
-				if err := setupServer(ctx, server, dockerCreds, newUserPassword, events); err != nil {
-					events <- console.Event{
-						Type:    console.EventError,
-						Message: fmt.Sprintf("[%s] Setup failed: %v", host, err),
-						Name:    host,
-					}
-					return
-				}
+	wg.Wait()
+	close(errChan)
 
-				events <- console.Event{
-					Type:    console.EventFinish,
-					Message: fmt.Sprintf("[%s] Setup completed successfully", host),
-					Name:    host,
-				}
-			}(server)
-		}
-		wg.Wait()
-	}()
+	var errs []error
+	for err := range errChan {
+		errs = append(errs, err)
+	}
 
-	return events
+	if len(errs) > 0 {
+		return fmt.Errorf("errors occurred during server setup: %v", errs)
+	}
+
+	return nil
 }
 
-func setupServer(ctx context.Context, server config.Server, dockerCreds DockerCredentials, newUserPassword string, events chan<- console.Event) error {
-	host := server.Host
+func setupServer(ctx context.Context, cfg config.Server, dockerCreds DockerCredentials, newUserPassword string, sm *console.SpinnerManager) error {
+	spinner := sm.AddSpinner("connecting", fmt.Sprintf("[%s] Connecting to server", cfg.Host))
 
-	sshClient, rootKey, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, "root", server.SSHKey)
+	sshClient, rootKey, err := ssh.FindKeyAndConnectWithUser(cfg.Host, cfg.Port, "root", cfg.SSHKey)
 	if err != nil {
+		spinner.ErrorWithMessagef("Failed to connect via SSH: %v", err)
 		return fmt.Errorf("failed to connect via SSH: %w", err)
 	}
 	defer sshClient.Close()
 
+	spinner.Complete()
+
 	runner := remote.NewRunner(sshClient)
-	server.RootSSHKey = string(rootKey)
+	cfg.RootSSHKey = string(rootKey)
 
-	tasks := []struct {
-		name   string
-		action func() error
-	}{
-		{
-			name: "Install Software",
-			action: func() error {
-				events <- console.Event{
-					Type:    console.EventStart,
-					Message: fmt.Sprintf("[%s] Installing software", host),
-					Name:    "installSoftware",
-				}
-				if err := installSoftware(ctx, runner); err != nil {
-					return err
-				}
-				events <- console.Event{
-					Type:    console.EventFinish,
-					Message: fmt.Sprintf("[%s] Software installed", host),
-					Name:    "installSoftware",
-				}
-				return nil
-			},
-		},
-		{
-			name: "Configure Firewall",
-			action: func() error {
-				events <- console.Event{
-					Type:    console.EventStart,
-					Message: fmt.Sprintf("[%s] Configuring firewall", host),
-					Name:    "configureFirewall",
-				}
-				if err := configureFirewall(ctx, runner); err != nil {
-					return err
-				}
-				events <- console.Event{
-					Type:    console.EventFinish,
-					Message: fmt.Sprintf("[%s] Firewall configured", host),
-					Name:    "configureFirewall",
-				}
-				return nil
-			},
-		},
-		{
-			name: "Create User",
-			action: func() error {
-				events <- console.Event{
-					Type:    console.EventStart,
-					Message: fmt.Sprintf("[%s] Creating user %s", host, server.User),
-					Name:    "createUser",
-				}
-				if err := createUser(ctx, runner, server.User, newUserPassword); err != nil {
-					return err
-				}
-				events <- console.Event{
-					Type:    console.EventFinish,
-					Message: fmt.Sprintf("[%s] User %s created", host, server.User),
-					Name:    "createUser",
-				}
-				return nil
-			},
-		},
-		{
-			name: "Setup SSH Key",
-			action: func() error {
-				events <- console.Event{
-					Type:    console.EventStart,
-					Message: fmt.Sprintf("[%s] Setting up SSH key", host),
-					Name:    "setupSSHKey",
-				}
-				if err := setupSSHKey(ctx, runner, server); err != nil {
-					return err
-				}
-				events <- console.Event{
-					Type:    console.EventFinish,
-					Message: fmt.Sprintf("[%s] SSH key set up", host),
-					Name:    "setupSSHKey",
-				}
-				return nil
-			},
-		},
-		{
-			name: "Docker Login",
-			action: func() error {
-				if dockerCreds.Username != "" && dockerCreds.Password != "" {
-					events <- console.Event{
-						Type:    console.EventStart,
-						Message: fmt.Sprintf("[%s] Logging into Docker Hub", host),
-						Name:    "dockerLogin",
-					}
-					if err := dockerLogin(ctx, runner, dockerCreds); err != nil {
-						return err
-					}
-					events <- console.Event{
-						Type:    console.EventFinish,
-						Message: fmt.Sprintf("[%s] Logged into Docker Hub", host),
-						Name:    "dockerLogin",
-					}
-				}
-				return nil
-			},
-		},
+	console.Print("Setting up server...")
+
+	spinner = sm.AddSpinner("software", fmt.Sprintf("[%s] Installing software", cfg.Host))
+	if err := installSoftware(ctx, runner); err != nil {
+		spinner.ErrorWithMessagef("Failed to install software: %v", err)
+		return fmt.Errorf("installing software: %w", err)
 	}
+	spinner.Complete()
 
-	for _, task := range tasks {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if err := task.action(); err != nil {
-				return fmt.Errorf("failed during task %s: %w", task.name, err)
-			}
+	spinner = sm.AddSpinner("firewall", fmt.Sprintf("[%s] Configuring firewall", cfg.Host))
+	if err := configureFirewall(ctx, runner); err != nil {
+		spinner.ErrorWithMessagef("Failed to configure firewall: %v", err)
+		return fmt.Errorf("configuring firewall: %w", err)
+	}
+	spinner.Complete()
+
+	spinner = sm.AddSpinner("user", fmt.Sprintf("[%s] Creating user %s", cfg.Host, cfg.User))
+	if err := createUser(ctx, runner, cfg.User, newUserPassword); err != nil {
+		spinner.ErrorWithMessagef("Failed to create user: %v", err)
+		return fmt.Errorf("creating user: %w", err)
+	}
+	spinner.Complete()
+
+	spinner = sm.AddSpinner("sshkey", fmt.Sprintf("[%s] Setting up SSH key", cfg.Host))
+	if err := setupSSHKey(ctx, runner, cfg); err != nil {
+		spinner.ErrorWithMessagef("Failed to setup SSH key: %v", err)
+		return fmt.Errorf("setting up SSH key: %w", err)
+	}
+	spinner.Complete()
+
+	if dockerCreds.Username != "" && dockerCreds.Password != "" {
+		spinner = sm.AddSpinner("docker", fmt.Sprintf("[%s] Logging into Docker Hub", cfg.Host))
+		if err := dockerLogin(ctx, runner, dockerCreds); err != nil {
+			spinner.ErrorWithMessagef("Failed to login to Docker: %v", err)
+			return fmt.Errorf("docker login: %w", err)
 		}
+		spinner.Complete()
 	}
 
 	return nil

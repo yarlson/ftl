@@ -36,8 +36,12 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if err := deployToServers(cfg); err != nil {
-		console.Error("Deployment failed")
+	sm := console.NewSpinnerManager()
+	sm.Start()
+	defer sm.Stop()
+
+	if err := deployToServers(cfg, sm); err != nil {
+		console.Error("Deployment failed:", err)
 		return
 	}
 }
@@ -56,52 +60,61 @@ func parseConfig(filename string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func deployToServers(cfg *config.Config) error {
+func deployToServers(cfg *config.Config, sm *console.SpinnerManager) error {
 	for _, server := range cfg.Servers {
-		if err := deployToServer(cfg.Project.Name, cfg, server); err != nil {
+		spinner := sm.AddSpinner(fmt.Sprintf("deploy-%s", server.Host), fmt.Sprintf("Deploying to server %s", server.Host))
+
+		if err := deployToServer(cfg.Project.Name, cfg, server, sm); err != nil {
+			spinner.ErrorWithMessagef("Failed to deploy to server %s: %v", server.Host, err)
 			return fmt.Errorf("failed to deploy to server %s: %w", server.Host, err)
 		}
-		console.Success(fmt.Sprintf("[%s] Successfully deployed to server", server.Host))
+
+		spinner.Complete()
 	}
 
 	return nil
 }
 
-func deployToServer(project string, cfg *config.Config, server config.Server) error {
+func deployToServer(project string, cfg *config.Config, server config.Server, sm *console.SpinnerManager) error {
 	hostname := server.Host
-	console.Info(fmt.Sprintf("[%s] Deploying to server...", hostname))
 
+	// Connect to server
+	spinner := sm.AddSpinner(fmt.Sprintf("connect-%s", hostname), fmt.Sprintf("[%s] Connecting to server", hostname))
 	runner, err := connectToServer(server)
 	if err != nil {
+		spinner.ErrorWithMessagef("Failed to connect to server %s: %v", hostname, err)
 		return fmt.Errorf("failed to connect to server %s: %w", hostname, err)
 	}
 	defer runner.Close()
+	spinner.Complete()
 
+	// Create temp directory for docker sync
+	spinner = sm.AddSpinner(fmt.Sprintf("setup-%s", hostname), fmt.Sprintf("[%s] Setting up deployment", hostname))
 	localStore, err := os.MkdirTemp("", "dockersync-local")
 	if err != nil {
+		spinner.ErrorWithMessagef("Failed to create local store: %v", err)
 		return fmt.Errorf("failed to create local store: %w", err)
 	}
 
+	// Initialize image syncer and deployment
 	syncer := imagesync.NewImageSync(imagesync.Config{
 		LocalStore:  localStore,
 		MaxParallel: 1,
 	}, runner)
-	deploy := deployment.NewDeployment(runner, syncer)
+	deploy := deployment.NewDeployment(runner, syncer, sm)
+	spinner.Complete()
 
+	// Start deployment
+	spinner = sm.AddSpinner(fmt.Sprintf("deploy-%s", hostname), fmt.Sprintf("[%s] Starting deployment", hostname))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	events := deploy.Deploy(ctx, project, cfg)
-
-	spinnerGroup := console.NewGroup()
-	defer spinnerGroup.StopAll()
-
-	for event := range events {
-		if err := spinnerGroup.HandleEvent(event); err != nil {
-			return err
-		}
+	if err := deploy.Deploy(ctx, project, cfg); err != nil {
+		spinner.ErrorWithMessagef("Deployment failed: %v", err)
+		return err
 	}
 
+	spinner.Complete()
 	return nil
 }
 

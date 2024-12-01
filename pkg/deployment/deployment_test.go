@@ -28,6 +28,7 @@ type DeploymentTestSuite struct {
 	deployment *Deployment
 	network    string
 	tc         *dockercontainer.Container
+	sm         *console.SpinnerManager
 }
 
 func TestDeploymentSuite(t *testing.T) {
@@ -46,10 +47,11 @@ func (suite *DeploymentTestSuite) SetupTest() {
 	sshClient, err := ssh.NewSSHClientWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
 	suite.Require().NoError(err)
 
-	suite.T().Log("Creating runner...")
+	suite.T().Log("Creating runner and spinner manager...")
 	runner := remote.NewRunner(sshClient)
 	suite.runner = runner
-	suite.deployment = NewDeployment(runner, nil)
+	suite.sm = console.NewSpinnerManager()
+	suite.deployment = NewDeployment(runner, nil, suite.sm)
 }
 
 func (suite *DeploymentTestSuite) TearDownTest() {
@@ -142,14 +144,9 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		events := suite.deployment.Deploy(ctx, project, cfg)
-		for event := range events {
-			suite.T().Logf("Event: %s", event)
-			if event.Type == console.EventError {
-				suite.Require().Fail(event.Message, "Deployment error %s", event.Message)
-				return
-			}
-		}
+		// Initial deployment
+		err := suite.deployment.Deploy(ctx, project, cfg)
+		suite.Require().NoError(err, "Initial deployment should succeed")
 
 		time.Sleep(5 * time.Second)
 
@@ -161,6 +158,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		requestCtx, requestCancel := context.WithCancel(context.Background())
 		defer requestCancel()
 
+		// Start concurrent requests
 		for i := 0; i < 10; i++ {
 			go func() {
 				client := &http.Client{
@@ -190,18 +188,12 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 
 		time.Sleep(2 * time.Second)
 
+		// Update service image
 		cfg.Services[0].Image = "nginx:1.20"
-
 		suite.T().Logf("Updating service image to nginx:1.20")
 
-		events = suite.deployment.Deploy(ctx, project, cfg)
-		for event := range events {
-			suite.T().Logf("Event: %s", event)
-			if event.Type == console.EventError {
-				suite.Require().Fail(event.Message, "Deployment error %s", event.Message)
-				return
-			}
-		}
+		err = suite.deployment.Deploy(ctx, project, cfg)
+		suite.Require().NoError(err, "Service update should succeed")
 
 		time.Sleep(2 * time.Second)
 		requestCancel()
@@ -210,7 +202,6 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		fmt.Printf("Failed requests: %d\n", requestStats.failedRequests)
 
 		serviceName := "web"
-
 		suite.Require().Equal(int32(0), requestStats.failedRequests, "Expected zero failed requests during zero-downtime deployment")
 
 		containerInfo := suite.inspectContainer(serviceName)

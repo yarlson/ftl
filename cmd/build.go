@@ -42,33 +42,24 @@ func runBuild(cmd *cobra.Command, args []string) {
 
 	runner := local.NewRunner()
 	builder := build.NewBuild(runner)
+	sm := console.NewSpinnerManager()
 
 	ctx := context.Background()
 
-	if err := buildAndPushServices(ctx, cfg.Project.Name, cfg.Services, builder, skipPush); err != nil {
+	if err := buildAndPushServices(ctx, cfg.Project.Name, cfg.Services, builder, skipPush, sm); err != nil {
 		console.Error("Build process failed:", err)
 		return
 	}
 }
 
 // buildAndPushServices builds and pushes all services concurrently.
-func buildAndPushServices(ctx context.Context, project string, services []config.Service, builder *build.Build, skipPush bool) error {
+func buildAndPushServices(ctx context.Context, project string, services []config.Service, builder *build.Build, skipPush bool, sm *console.SpinnerManager) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(services))
-	eventChan := make(chan console.Event)
-	done := make(chan struct{})
 
-	spinnerGroup := console.NewGroup()
-	defer spinnerGroup.StopAll()
-
-	go func() {
-		for event := range eventChan {
-			if err := spinnerGroup.HandleEvent(event); err != nil {
-				errChan <- err
-			}
-		}
-		close(done)
-	}()
+	// Start the spinner manager
+	sm.Start()
+	defer sm.Stop()
 
 	for _, svc := range services {
 		wg.Add(1)
@@ -80,55 +71,36 @@ func buildAndPushServices(ctx context.Context, project string, services []config
 				image = fmt.Sprintf("%s-%s", project, serviceName)
 			}
 
-			eventChan <- console.Event{
-				Type:    console.EventStart,
-				Message: fmt.Sprintf("Building service %s", serviceName),
-				Name:    serviceName,
-			}
+			// Create build spinner
+			spinner := sm.AddSpinner(fmt.Sprintf("build-%s", serviceName), fmt.Sprintf("Building service %s", serviceName))
+
+			// Build service
 			if err := builder.Build(ctx, image, svc.Path); err != nil {
-				eventChan <- console.Event{
-					Type:    console.EventError,
-					Message: fmt.Sprintf("Failed to build service %s: %v", serviceName, err),
-					Name:    serviceName,
-				}
+				spinner.ErrorWithMessagef("Failed to build service %s: %v", serviceName, err)
 				errChan <- fmt.Errorf("failed to build service %s: %w", serviceName, err)
 				return
 			}
-			eventChan <- console.Event{
-				Type:    console.EventFinish,
-				Message: fmt.Sprintf("Service %s built successfully", serviceName),
-				Name:    serviceName,
-			}
+			spinner.Complete()
 
+			// Skip push if requested or if using local image
 			if skipPush || svc.Image == "" {
 				return
 			}
 
-			eventChan <- console.Event{
-				Type:    console.EventStart,
-				Message: fmt.Sprintf("Pushing service %s", serviceName),
-				Name:    serviceName,
-			}
+			// Create push spinner
+			spinner = sm.AddSpinner(fmt.Sprintf("push-%s", serviceName), fmt.Sprintf("Pushing service %s", serviceName))
+
+			// Push service
 			if err := builder.Push(ctx, svc.Image); err != nil {
-				eventChan <- console.Event{
-					Type:    console.EventError,
-					Message: fmt.Sprintf("Failed to push service %s: %v", serviceName, err),
-					Name:    serviceName,
-				}
+				spinner.ErrorWithMessagef("Failed to push service %s: %v", serviceName, err)
 				errChan <- fmt.Errorf("failed to push service %s: %w", serviceName, err)
 				return
 			}
-			eventChan <- console.Event{
-				Type:    console.EventFinish,
-				Message: fmt.Sprintf("Service %s pushed successfully", serviceName),
-				Name:    serviceName,
-			}
+			spinner.Complete()
 		}(svc)
 	}
 
 	wg.Wait()
-	close(eventChan)
-	<-done
 	close(errChan)
 
 	var errs []error

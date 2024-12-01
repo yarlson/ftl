@@ -26,37 +26,42 @@ func init() {
 }
 
 func runSetup(cmd *cobra.Command, args []string) {
+	sm := console.NewSpinnerManager()
+	spinner := sm.AddSpinner("config", "Parsing configuration")
+
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
-		console.Error("Failed to parse config file:", err)
+		spinner.ErrorWithMessagef("Failed to parse config file: %v", err)
 		return
 	}
+	spinner.Complete()
 
+	// Get Docker credentials if needed
+	spinner = sm.AddSpinner("docker", "Checking Docker credentials")
 	dockerCreds, err := getDockerCredentials(cfg.Services)
 	if err != nil {
-		console.Error("Failed to get Docker credentials:", err)
+		spinner.ErrorWithMessagef("Failed to get Docker credentials: %v", err)
 		return
 	}
+	spinner.Complete()
 
+	// Get user password
 	newUserPassword, err := getUserPassword()
 	if err != nil {
 		console.Error("Failed to read password:", err)
 		return
 	}
 
+	// Start server setup
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	events := server.SetupServers(ctx, cfg, dockerCreds, newUserPassword)
+	sm.Start()
+	defer sm.Stop()
 
-	spinnerGroup := console.NewGroup()
-	defer spinnerGroup.StopAll()
-
-	for event := range events {
-		if err := spinnerGroup.HandleEvent(event); err != nil {
-			console.Error("Setup failed:", err)
-			return
-		}
+	if err := server.SetupServers(ctx, cfg, dockerCreds, newUserPassword, sm); err != nil {
+		console.Error("Setup failed:", err)
+		return
 	}
 
 	console.Success("Server setup completed successfully.")
@@ -86,6 +91,7 @@ func getDockerCredentials(services []config.Service) (server.DockerCredentials, 
 }
 
 func getUserPassword() (string, error) {
+	console.Input("Enter new user password:")
 	password, err := console.ReadPassword()
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %w", err)
