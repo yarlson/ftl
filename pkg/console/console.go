@@ -14,7 +14,6 @@ var (
 	colorRed    = "\033[31m"
 	colorGreen  = "\033[32m"
 	colorYellow = "\033[33m"
-	showCursor  = "\033[?25h"
 )
 
 func init() {
@@ -23,7 +22,6 @@ func init() {
 		colorRed = ""
 		colorGreen = ""
 		colorYellow = ""
-		showCursor = ""
 	}
 }
 
@@ -84,6 +82,5 @@ func Print(a ...interface{}) {
 
 // Reset ensures the cursor is visible and terminal is in a normal state.
 func Reset() {
-	fmt.Print(showCursor)
 	_ = os.Stdout.Sync()
 }
