@@ -194,9 +194,9 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 			projectPath + "/:/etc/nginx/ssl",
 			configPath + ":/etc/nginx/conf.d",
 		},
-		EnvVars: map[string]string{
-			"DOMAIN": cfg.Project.Domain,
-			"EMAIL":  cfg.Project.Email,
+		Env: []string{
+			"DOMAIN=" + cfg.Project.Domain,
+			"EMAIL=" + cfg.Project.Email,
 		},
 		Forwards: []string{
 			"80:80",
@@ -245,7 +245,7 @@ func (d *Deployment) startDependency(project string, dependency *config.Dependen
 		Name:    dependency.Name,
 		Image:   dependency.Image,
 		Volumes: dependency.Volumes,
-		EnvVars: dependency.EnvVars,
+		Env:     dependency.Env,
 	}
 	if err := d.deployService(project, service); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", dependency.Image, err)
@@ -412,8 +412,8 @@ func (d *Deployment) createContainer(project string, service *config.Service, su
 
 	args := []string{"run", "-d", "--name", svcName + suffix, "--network", project, "--network-alias", svcName + suffix}
 
-	for key, value := range service.EnvVars {
-		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
+	for _, value := range service.Env {
+		args = append(args, "-e", value)
 	}
 
 	for _, volume := range service.Volumes {
@@ -993,10 +993,10 @@ func (d *Deployment) deployCertRenewer(project string, cfg *config.Config) error
 			"certs:/etc/nginx/ssl",
 			"/var/run/docker.sock:/var/run/docker.sock",
 		},
-		EnvVars: map[string]string{
-			"DOMAIN":               cfg.Project.Domain,
-			"EMAIL":                cfg.Project.Email,
-			"PROXY_CONTAINER_NAME": "proxy",
+		Env: []string{
+			"DOMAIN=" + cfg.Project.Domain,
+			"EMAIL=" + cfg.Project.Email,
+			"PROXY_CONTAINER_NAME=proxy",
 		},
 		Entrypoint: []string{"/renew-certificates.sh"},
 		Recreate:   true,

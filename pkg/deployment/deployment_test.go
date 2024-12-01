@@ -110,10 +110,10 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 				Volumes: []string{
 					"postgres_data:/var/lib/postgresql/data",
 				},
-				EnvVars: map[string]string{
-					"POSTGRES_PASSWORD": "S3cret",
-					"POSTGRES_USER":     "test",
-					"POSTGRES_DB":       "test",
+				Env: []string{
+					"POSTGRES_PASSWORD=S3cret",
+					"POSTGRES_USER=test",
+					"POSTGRES_DB=test",
 				},
 			},
 		},

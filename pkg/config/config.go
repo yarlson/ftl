@@ -50,24 +50,16 @@ type Service struct {
 	Volumes     []string     `yaml:"volumes" validate:"dive,volume_reference"`
 	Command     string       `yaml:"command"`
 	Entrypoint  []string     `yaml:"entrypoint"`
-
-	Forwards []string
-
-	EnvVars map[string]string
-
-	Recreate bool
-}
-
-type EnvVar struct {
-	Name  string
-	Value string
+	Env         []string     `yaml:"env"`
+	Forwards    []string     `yaml:"forwards"`
+	Recreate    bool         `yaml:"recreate"`
 }
 
 type HealthCheck struct {
-	Path     string
-	Interval time.Duration
-	Timeout  time.Duration
-	Retries  int
+	Path     string        `yaml:"path"`
+	Interval time.Duration `yaml:"interval"`
+	Timeout  time.Duration `yaml:"timeout"`
+	Retries  int           `yaml:"retries"`
 }
 
 type Route struct {
@@ -76,10 +68,10 @@ type Route struct {
 }
 
 type Dependency struct {
-	Name    string            `yaml:"name" validate:"required"`
-	Image   string            `yaml:"image" validate:"required"`
-	Volumes []string          `yaml:"volumes" validate:"dive,volume_reference"`
-	EnvVars map[string]string `yaml:"env" validate:"dive"`
+	Name    string   `yaml:"name" validate:"required"`
+	Image   string   `yaml:"image" validate:"required"`
+	Volumes []string `yaml:"volumes" validate:"dive,volume_reference"`
+	Env     []string `yaml:"env" validate:"dive"`
 }
 
 type Volume struct {
@@ -88,31 +80,42 @@ type Volume struct {
 }
 
 func ParseConfig(data []byte) (*Config, error) {
-	expandedData := os.ExpandEnv(string(data))
+	// Load any .env file from the current directory
+	_ = godotenv.Load()
+
+	// Process environment variables with default values
+	expandedData := os.Expand(string(data), func(key string) string {
+		// Check if there's a default value specified
+		parts := strings.SplitN(key, ":-", 2)
+		envKey := parts[0]
+
+		if value, exists := os.LookupEnv(envKey); exists {
+			return value
+		}
+
+		// Return default value if specified, empty string otherwise
+		if len(parts) > 1 {
+			return parts[1]
+		}
+		return ""
+	})
 
 	var config Config
 	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {
 		return nil, fmt.Errorf("error parsing YAML: %v", err)
 	}
 
-	for service := range config.Services {
-		if config.Services[service].Path == "" {
-			config.Services[service].Path = "./"
-		}
-		envPath := filepath.Join(config.Services[service].Path, ".env")
-		if _, err := os.Stat(envPath); os.IsNotExist(err) {
-			continue
-		}
-		envMap, err := godotenv.Read(envPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read .env file: %w", err)
+	// Process .env files for services if they exist
+	for i := range config.Services {
+		if config.Services[i].Path == "" {
+			config.Services[i].Path = "./"
 		}
 
-		if config.Services[service].EnvVars == nil {
-			config.Services[service].EnvVars = make(map[string]string)
-		}
-		for key, value := range envMap {
-			config.Services[service].EnvVars[key] = value
+		envPath := filepath.Join(config.Services[i].Path, ".env")
+		if _, err := os.Stat(envPath); err == nil {
+			if err := godotenv.Load(envPath); err != nil {
+				return nil, fmt.Errorf("failed to read .env file: %w", err)
+			}
 		}
 	}
 
