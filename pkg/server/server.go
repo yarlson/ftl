@@ -69,8 +69,6 @@ func setupServer(ctx context.Context, cfg config.Server, dockerCreds DockerCrede
 	runner := remote.NewRunner(sshClient)
 	cfg.RootSSHKey = string(rootKey)
 
-	console.Print("Setting up server...")
-
 	spinner = sm.AddSpinner("software", fmt.Sprintf("[%s] Installing software", cfg.Host))
 	if err := installSoftware(ctx, runner); err != nil {
 		spinner.ErrorWithMessagef("Failed to install software: %v", err)

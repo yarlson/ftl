@@ -9,12 +9,23 @@ import (
 	"golang.org/x/term"
 )
 
-const (
+var (
 	colorReset  = "\033[0m"
 	colorRed    = "\033[31m"
 	colorGreen  = "\033[32m"
 	colorYellow = "\033[33m"
+	showCursor  = "\033[?25h"
 )
+
+func init() {
+	if _, exists := os.LookupEnv("NO_COLOR"); exists {
+		colorReset = ""
+		colorRed = ""
+		colorGreen = ""
+		colorYellow = ""
+		showCursor = ""
+	}
+}
 
 // Info prints an information message.
 func Info(a ...interface{}) {
@@ -58,7 +69,6 @@ func ReadLine() (string, error) {
 
 // ReadPassword reads a password from standard input without echoing.
 func ReadPassword() (string, error) {
-	Input("")
 	password, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return "", err
@@ -70,4 +80,10 @@ func ReadPassword() (string, error) {
 // Print prints a message to the console.
 func Print(a ...interface{}) {
 	fmt.Println(a...)
+}
+
+// Reset ensures the cursor is visible and terminal is in a normal state.
+func Reset() {
+	fmt.Print(showCursor)
+	_ = os.Stdout.Sync()
 }
