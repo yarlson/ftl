@@ -7,3 +7,4 @@ ftl
 /pkg/deployment/projects/
 ftl.yaml
 .env
+/.changelog/
