@@ -2,12 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/yarlson/ftl/pkg/console"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/yarlson/ftl/cmd"
+	"github.com/yarlson/ftl/pkg/console"
 )
 
 func main() {

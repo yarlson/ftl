@@ -11,9 +11,9 @@ import (
 
 var (
 	colorReset  = "\033[0m"
-	colorRed    = "\033[31m"
-	colorGreen  = "\033[32m"
-	colorYellow = "\033[33m"
+	colorRed    = "\033[91m" // Bright Red
+	colorGreen  = "\033[92m" // Bright Green
+	colorYellow = "\033[93m" // Bright Yellow
 )
 
 func init() {
@@ -34,7 +34,7 @@ func Info(a ...interface{}) {
 // Success prints a success message.
 func Success(a ...interface{}) {
 	message := fmt.Sprint(a...)
-	fmt.Printf("%s✔%s %s\n", colorGreen, colorReset, message)
+	fmt.Printf("%s✓%s %s\n", colorGreen, colorReset, message)
 }
 
 // Warning prints a warning message.
@@ -83,4 +83,8 @@ func Print(a ...interface{}) {
 // Reset ensures the cursor is visible and terminal is in a normal state.
 func Reset() {
 	_ = os.Stdout.Sync()
+}
+
+func ClearPreviousLine() {
+	fmt.Print("\033[1A\033[K")
 }

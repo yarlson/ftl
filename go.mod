@@ -84,3 +84,5 @@ require (
 	google.golang.org/grpc v1.68.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 )
+
+replace github.com/chelnak/ysmrr => github.com/yarlson/ysmrr v0.0.0-20241202064507-f51ced3b0b88

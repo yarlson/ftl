@@ -44,6 +44,10 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		console.Error("Deployment failed:", err)
 		return
 	}
+
+	sm.Stop()
+
+	console.Success("Deployment completed successfully.")
 }
 
 func parseConfig(filename string) (*config.Config, error) {
@@ -62,14 +66,9 @@ func parseConfig(filename string) (*config.Config, error) {
 
 func deployToServers(cfg *config.Config, sm *console.SpinnerManager) error {
 	for _, server := range cfg.Servers {
-		spinner := sm.AddSpinner(fmt.Sprintf("deploy-%s", server.Host), fmt.Sprintf("Deploying to server %s", server.Host))
-
 		if err := deployToServer(cfg.Project.Name, cfg, server, sm); err != nil {
-			spinner.ErrorWithMessagef("Failed to deploy to server %s: %v", server.Host, err)
 			return fmt.Errorf("failed to deploy to server %s: %w", server.Host, err)
 		}
-
-		spinner.Complete()
 	}
 
 	return nil
@@ -105,16 +104,13 @@ func deployToServer(project string, cfg *config.Config, server config.Server, sm
 	spinner.Complete()
 
 	// Start deployment
-	spinner = sm.AddSpinner(fmt.Sprintf("deploy-%s", hostname), fmt.Sprintf("[%s] Starting deployment", hostname))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	if err := deploy.Deploy(ctx, project, cfg); err != nil {
-		spinner.ErrorWithMessagef("Deployment failed: %v", err)
 		return err
 	}
 
-	spinner.Complete()
 	return nil
 }
 

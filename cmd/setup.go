@@ -27,6 +27,9 @@ func init() {
 
 func runSetup(cmd *cobra.Command, args []string) {
 	sm := console.NewSpinnerManager()
+	sm.Start()
+	defer sm.Stop()
+
 	spinner := sm.AddSpinner("config", "Parsing configuration")
 
 	cfg, err := parseConfig("ftl.yaml")
@@ -44,6 +47,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 		return
 	}
 	spinner.Complete()
+	sm.Stop()
 
 	// Get user password
 	newUserPassword, err := getUserPassword()
@@ -51,18 +55,23 @@ func runSetup(cmd *cobra.Command, args []string) {
 		console.Error("Failed to read password:", err)
 		return
 	}
+	console.ClearPreviousLine()
+	console.Success("Password set successfully")
+
+	sm = console.NewSpinnerManager()
+	sm.Start()
+	defer sm.Stop()
 
 	// Start server setup
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	sm.Start()
-	defer sm.Stop()
-
 	if err := server.SetupServers(ctx, cfg, dockerCreds, newUserPassword, sm); err != nil {
 		console.Error("Setup failed:", err)
 		return
 	}
+
+	sm.Stop()
 
 	console.Success("Server setup completed successfully.")
 }
