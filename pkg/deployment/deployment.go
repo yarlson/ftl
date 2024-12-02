@@ -410,7 +410,7 @@ func (d *Deployment) getContainerInfo(service, network string) (*containerInfo, 
 func (d *Deployment) createContainer(project string, service *config.Service, suffix string) error {
 	svcName := service.Name
 
-	args := []string{"run", "-d", "--name", svcName + suffix, "--network", project, "--network-alias", svcName + suffix}
+	args := []string{"run", "-d", "--name", svcName + suffix, "--network", project, "--network-alias", svcName + suffix, "--restart", "unless-stopped"}
 
 	for _, value := range service.Env {
 		args = append(args, "-e", value)
