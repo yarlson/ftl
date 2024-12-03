@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -464,7 +465,20 @@ func (d *Deployment) performHealthChecks(container string, healthCheck *config.H
 		return fmt.Errorf("failed to get container logs: %v", err)
 	}
 
-	return fmt.Errorf("container failed to become healthy\n---\n%s\n---", output)
+	lines := strings.Split(output, "\n")
+	if len(lines) > 20 {
+		lines = lines[len(lines)-20:]
+	}
+	trimmedOutput := strings.Join(lines, "\n")
+
+	// Remove all color codes from trimmedOutput
+	colorCodeRegex := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+	cleanedOutput := colorCodeRegex.ReplaceAllString(trimmedOutput, "")
+
+	// Add gray color to the cleaned output
+	grayOutput := "\x1b[90m" + cleanedOutput + "\x1b[0m"
+
+	return fmt.Errorf("container failed to become healthy\n\x1b[93mOutput from the container:\x1b[0m\n%s", grayOutput)
 }
 
 func (d *Deployment) switchTraffic(project, service string) (string, error) {

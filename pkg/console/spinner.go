@@ -1,9 +1,11 @@
 package console
 
 import (
+	"os"
 	"sync"
 
 	"github.com/chelnak/ysmrr"
+	"golang.org/x/term"
 )
 
 // SpinnerManager handles multiple named spinners with concurrent access support.
@@ -60,7 +62,10 @@ func (m *SpinnerManager) Start() {
 	m.sm.Start()
 }
 
-// Stop halts all spinners and cleans up resources.
 func (m *SpinnerManager) Stop() {
 	m.sm.Stop()
+
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		print("\033[?25h")
+	}
 }

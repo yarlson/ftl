@@ -38,16 +38,16 @@ func runDeploy(cmd *cobra.Command, args []string) {
 
 	sm := console.NewSpinnerManager()
 	sm.Start()
-	defer sm.Stop()
 
 	if err := deployToServers(cfg, sm); err != nil {
-		console.Error("Deployment failed:", err)
+		sm.Stop()
+		console.Error("Deployment failed")
 		return
 	}
 
 	sm.Stop()
 
-	console.Success("Deployment completed successfully.")
+	console.Success("Deployment completed successfully")
 }
 
 func parseConfig(filename string) (*config.Config, error) {
