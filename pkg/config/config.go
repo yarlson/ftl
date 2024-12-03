@@ -41,18 +41,19 @@ type Server struct {
 }
 
 type Service struct {
-	Name        string       `yaml:"name" validate:"required"`
-	Image       string       `yaml:"image"`
-	Port        int          `yaml:"port" validate:"required,min=1,max=65535"`
-	Path        string       `yaml:"path"`
-	HealthCheck *HealthCheck `yaml:"health_check"`
-	Routes      []Route      `yaml:"routes" validate:"required,dive"`
-	Volumes     []string     `yaml:"volumes" validate:"dive,volume_reference"`
-	Command     string       `yaml:"command"`
-	Entrypoint  []string     `yaml:"entrypoint"`
-	Env         []string     `yaml:"env"`
-	Forwards    []string     `yaml:"forwards"`
-	Recreate    bool         `yaml:"recreate"`
+	Name         string `yaml:"name" validate:"required"`
+	Image        string `yaml:"image"`
+	ImageUpdated bool
+	Port         int          `yaml:"port" validate:"required,min=1,max=65535"`
+	Path         string       `yaml:"path"`
+	HealthCheck  *HealthCheck `yaml:"health_check"`
+	Routes       []Route      `yaml:"routes" validate:"required,dive"`
+	Volumes      []string     `yaml:"volumes" validate:"dive,volume_reference"`
+	Command      string       `yaml:"command"`
+	Entrypoint   []string     `yaml:"entrypoint"`
+	Env          []string     `yaml:"env"`
+	Forwards     []string     `yaml:"forwards"`
+	Recreate     bool         `yaml:"recreate"`
 }
 
 type HealthCheck struct {

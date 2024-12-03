@@ -83,7 +83,7 @@ func TestImageSync(t *testing.T) {
 	// Run sync
 	t.Log("Running sync...")
 	ctx := context.Background()
-	err = sync.Sync(ctx, testImage)
+	_, err = sync.Sync(ctx, testImage)
 	require.NoError(t, err)
 
 	// Verify image exists on remote
@@ -98,12 +98,12 @@ func TestImageSync(t *testing.T) {
 
 	// Test image comparison
 	t.Log("Comparing images...")
-	needsSync, err := sync.compareImages(ctx, testImage)
+	needsSync, err := sync.CompareImages(ctx, testImage)
 	require.NoError(t, err)
 	require.False(t, needsSync, "Images should be identical after sync")
 
 	// Test re-sync with no changes
 	t.Log("Re-syncing...")
-	err = sync.Sync(ctx, testImage)
+	_, err = sync.Sync(ctx, testImage)
 	require.NoError(t, err)
 }

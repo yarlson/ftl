@@ -23,12 +23,13 @@ const (
 
 type Runner interface {
 	CopyFile(ctx context.Context, from, to string) error
-	GetHost() string
+	Host() string
 	RunCommand(ctx context.Context, command string, args ...string) (io.ReadCloser, error)
 }
 
 type ImageSyncer interface {
-	Sync(ctx context.Context, image string) error
+	Sync(ctx context.Context, image string) (bool, error)
+	CompareImages(ctx context.Context, image string) (bool, error)
 }
 
 type Deployment struct {
@@ -42,7 +43,7 @@ func NewDeployment(runner Runner, syncer ImageSyncer, sm *console.SpinnerManager
 }
 
 func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Config) error {
-	hostname := d.runner.GetHost()
+	hostname := d.runner.Host()
 
 	// Create project network
 	spinner := d.sm.AddSpinner("network", fmt.Sprintf("[%s] Creating network...", hostname))
@@ -76,7 +77,7 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 }
 
 func (d *Deployment) createVolumes(ctx context.Context, project string, volumes []string) error {
-	hostname := d.runner.GetHost()
+	hostname := d.runner.Host()
 
 	for _, volume := range volumes {
 		spinner := d.sm.AddSpinner("volume", fmt.Sprintf("[%s] Creating volume %s", hostname, volume))
@@ -93,7 +94,7 @@ func (d *Deployment) createVolumes(ctx context.Context, project string, volumes 
 }
 
 func (d *Deployment) deployDependencies(ctx context.Context, project string, dependencies []config.Dependency) error {
-	hostname := d.runner.GetHost()
+	hostname := d.runner.Host()
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(dependencies))
 
@@ -130,7 +131,7 @@ func (d *Deployment) deployDependencies(ctx context.Context, project string, dep
 }
 
 func (d *Deployment) deployServices(ctx context.Context, project string, services []config.Service) error {
-	hostname := d.runner.GetHost()
+	hostname := d.runner.Host()
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(services))
 
@@ -167,7 +168,7 @@ func (d *Deployment) deployServices(ctx context.Context, project string, service
 }
 
 func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config.Config) error {
-	hostname := d.runner.GetHost()
+	hostname := d.runner.Host()
 
 	// Prepare project folder
 	projectPath, err := d.prepareProjectFolder(project)
@@ -237,10 +238,6 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 }
 
 func (d *Deployment) startDependency(project string, dependency *config.Dependency) error {
-	if _, err := d.pullImage(dependency.Image); err != nil {
-		return fmt.Errorf("failed to pull image for %s: %v", dependency.Image, err)
-	}
-
 	service := &config.Service{
 		Name:    dependency.Name,
 		Image:   dependency.Image,
@@ -255,16 +252,6 @@ func (d *Deployment) startDependency(project string, dependency *config.Dependen
 }
 
 func (d *Deployment) installService(project string, service *config.Service) error {
-	if service.Image != "" {
-		if _, err := d.pullImage(service.Image); err != nil {
-			return fmt.Errorf("failed to pull image for %s: %v", service.Image, err)
-		}
-	} else {
-		if err := d.syncer.Sync(context.Background(), fmt.Sprintf("%s-%s", project, service.Name)); err != nil {
-			return fmt.Errorf("failed to sync service %s for %s: %v", service.Name, service.Image, err)
-		}
-	}
-
 	if err := d.createContainer(project, service, ""); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", service.Image, err)
 	}
@@ -280,16 +267,6 @@ func (d *Deployment) installService(project string, service *config.Service) err
 
 func (d *Deployment) updateService(project string, service *config.Service) error {
 	svcName := service.Name
-
-	if service.Image != "" {
-		if _, err := d.pullImage(service.Image); err != nil {
-			return fmt.Errorf("failed to pull new image for %s: %v", svcName, err)
-		}
-	} else {
-		if err := d.syncer.Sync(context.Background(), fmt.Sprintf("%s-%s", project, service.Name)); err != nil {
-			return fmt.Errorf("failed to sync service %s for %s: %v", service.Name, service.Image, err)
-		}
-	}
 
 	if service.Recreate {
 		if err := d.recreateService(project, service); err != nil {
@@ -369,7 +346,7 @@ type containerInfo struct {
 }
 
 func (d *Deployment) getContainerID(project, service string) (string, error) {
-	info, err := d.getContainerInfo(service, project)
+	info, err := d.getContainerInfo(project, service)
 	if err != nil {
 		return "", err
 	}
@@ -377,7 +354,7 @@ func (d *Deployment) getContainerID(project, service string) (string, error) {
 	return info.ID, err
 }
 
-func (d *Deployment) getContainerInfo(service, network string) (*containerInfo, error) {
+func (d *Deployment) getContainerInfo(network, service string) (*containerInfo, error) {
 	output, err := d.runCommand(context.Background(), "docker", "ps", "-aq", "--filter", fmt.Sprintf("network=%s", network))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container IDs: %w", err)
@@ -637,10 +614,109 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 	return configPath, d.runner.CopyFile(context.Background(), tmpFile.Name(), filepath.Join(configPath, "default.conf"))
 }
 
-func (d *Deployment) serviceChanged(project string, service *config.Service) (bool, error) {
-	containerInfo, err := d.getContainerInfo(service.Name, project)
+func (d *Deployment) deployService(project string, service *config.Service) error {
+	err := d.updateImage(project, service)
+	if err != nil {
+		return err
+	}
+
+	containerStatus, err := d.getContainerStatus(project, service.Name)
+	if err != nil {
+		return err
+	}
+
+	if containerStatus == ContainerStatusNotFound {
+		if err := d.installService(project, service); err != nil {
+			return fmt.Errorf("failed to install service %s: %w", service.Name, err)
+		}
+
+		return nil
+	}
+
+	containerShouldBeUpdated, err := d.containerShouldBeUpdated(project, service)
+	if err != nil {
+		return err
+	}
+
+	if containerShouldBeUpdated {
+		if err := d.updateService(project, service); err != nil {
+			return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
+		}
+
+		return nil
+	}
+
+	if containerStatus == ContainerStatusStopped {
+		if err := d.startContainer(service); err != nil {
+			return fmt.Errorf("failed to start container %s: %w", service.Name, err)
+		}
+
+		return nil
+	}
+
+	return nil
+}
+
+type ContainerStatusType int
+
+const (
+	ContainerStatusRunning ContainerStatusType = iota
+	ContainerStatusStopped
+	ContainerStatusNotFound
+	ContainerStatusError
+)
+
+func (d *Deployment) getContainerStatus(project, service string) (ContainerStatusType, error) {
+	getContainerInfo, err := d.getContainerInfo(project, service)
+	if err != nil {
+		if strings.Contains(err.Error(), "no container found") {
+			return ContainerStatusNotFound, nil
+		}
+
+		return ContainerStatusError, fmt.Errorf("failed to get container info: %w", err)
+	}
+
+	if getContainerInfo.State.Status != "running" {
+		return ContainerStatusStopped, nil
+	}
+
+	return ContainerStatusRunning, nil
+}
+
+func (d *Deployment) updateImage(project string, service *config.Service) error {
+	if service.Image == "" {
+		updated, err := d.syncer.Sync(context.Background(), fmt.Sprintf("%s-%s", project, service.Name))
+		if err != nil {
+			return err
+		}
+		service.ImageUpdated = updated
+	}
+
+	_, err := d.pullImage(service.Image)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Deployment) containerShouldBeUpdated(project string, service *config.Service) (bool, error) {
+	containerInfo, err := d.getContainerInfo(project, service.Name)
 	if err != nil {
 		return false, fmt.Errorf("failed to get container info: %w", err)
+	}
+
+	imageHash, err := d.getImageHash(service.Image)
+	if err != nil {
+		return false, fmt.Errorf("failed to get image hash: %w", err)
+	}
+
+	if service.Image == "" && service.ImageUpdated {
+		return true, nil
+	}
+
+	if service.Image != "" && containerInfo.Image != imageHash {
+		return true, nil
 	}
 
 	hash, err := service.Hash()
@@ -649,55 +725,6 @@ func (d *Deployment) serviceChanged(project string, service *config.Service) (bo
 	}
 
 	return containerInfo.Config.Labels["ftl.config-hash"] != hash, nil
-}
-
-func (d *Deployment) deployService(project string, service *config.Service) error {
-	imageName := service.Image
-	if imageName == "" {
-		imageName = fmt.Sprintf("%s-%s", project, service.Name)
-	}
-
-	hash, err := d.getImageHash(imageName)
-	if err != nil {
-		return fmt.Errorf("failed to pull image for %s: %w", service.Name, err)
-	}
-
-	containerInfo, err := d.getContainerInfo(service.Name, project)
-	if err != nil {
-		if err := d.installService(project, service); err != nil {
-			return fmt.Errorf("failed to install service %s: %w", service.Name, err)
-		}
-
-		return nil
-	}
-
-	if hash != containerInfo.Image {
-		if err := d.updateService(project, service); err != nil {
-			return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
-		}
-
-		return nil
-	}
-
-	changed, err := d.serviceChanged(project, service)
-	if err != nil {
-		return fmt.Errorf("failed to check if service %s has changed: %w", service.Name, err)
-	}
-
-	if changed {
-		if err := d.updateService(project, service); err != nil {
-			return fmt.Errorf("failed to update service %s due to config change: %w", service.Name, err)
-		}
-
-		return nil
-	}
-
-	if containerInfo.State.Status != "running" {
-		if err := d.startContainer(service); err != nil {
-			return fmt.Errorf("failed to start container %s: %w", service.Name, err)
-		}
-	}
-	return nil
 }
 
 func (d *Deployment) networkExists(network string) (bool, error) {

@@ -45,41 +45,41 @@ func NewImageSync(cfg Config, runner *remote.Runner) *ImageSync {
 }
 
 // Sync performs the Docker image synchronization process.
-func (s *ImageSync) Sync(ctx context.Context, image string) error {
-	needsSync, err := s.compareImages(ctx, image)
+func (s *ImageSync) Sync(ctx context.Context, image string) (bool, error) {
+	needsSync, err := s.CompareImages(ctx, image)
 	if err != nil {
-		return fmt.Errorf("failed to compare images: %w", err)
+		return false, fmt.Errorf("failed to compare images: %w", err)
 	}
 
 	if !needsSync {
-		return nil // Images are identical
+		return false, nil // Images are identical
 	}
 
 	if err := s.prepareDirectories(ctx); err != nil {
-		return fmt.Errorf("failed to prepare directories: %w", err)
+		return false, fmt.Errorf("failed to prepare directories: %w", err)
 	}
 
 	if err := s.exportAndExtractImage(ctx, image); err != nil {
-		return fmt.Errorf("failed to export and extract image: %w", err)
+		return false, fmt.Errorf("failed to export and extract image: %w", err)
 	}
 
 	if err := s.transferMetadata(ctx, image); err != nil {
-		return fmt.Errorf("failed to transfer metadata: %w", err)
+		return false, fmt.Errorf("failed to transfer metadata: %w", err)
 	}
 
 	if err := s.syncBlobs(ctx, image); err != nil {
-		return fmt.Errorf("failed to sync blobs: %w", err)
+		return false, fmt.Errorf("failed to sync blobs: %w", err)
 	}
 
 	if err := s.loadRemoteImage(ctx, image); err != nil {
-		return fmt.Errorf("failed to load remote image: %w", err)
+		return false, fmt.Errorf("failed to load remote image: %w", err)
 	}
 
-	return nil
+	return true, nil
 }
 
-// compareImages checks if the image needs to be synced by comparing local and remote versions.
-func (s *ImageSync) compareImages(ctx context.Context, image string) (bool, error) {
+// CompareImages checks if the image needs to be synced by comparing local and remote versions.
+func (s *ImageSync) CompareImages(ctx context.Context, image string) (bool, error) {
 	localInspect, err := s.inspectLocalImage(image)
 	if err != nil {
 		return false, fmt.Errorf("failed to inspect local image: %w", err)
@@ -91,7 +91,8 @@ func (s *ImageSync) compareImages(ctx context.Context, image string) (bool, erro
 	}
 
 	// Compare normalized JSON data
-	return !compareImageData(localInspect, remoteInspect), nil
+	imagesEqual := compareImageData(localInspect, remoteInspect)
+	return !imagesEqual, nil
 }
 
 // ImageData represents Docker image metadata.
