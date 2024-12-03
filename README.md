@@ -267,6 +267,15 @@ FTL supports two forms of environment variable substitution in the configuration
 - **Service Dependencies**: Specify dependent services and their configurations.
 - **Routing Rules**: Define custom routing paths and whether to strip prefixes.
 
+## Example Projects
+
+The [ftl-examples](https://github.com/yarlson/ftl-examples) repository contains reference implementations:
+
+- [Flask](https://github.com/yarlson/ftl-examples/tree/main/flask) - Python Flask application with PostgreSQL
+- More examples coming soon
+
+Each example provides a complete project structure with configuration files and deployment instructions.
+
 ## Development
 
 ```bash
