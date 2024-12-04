@@ -54,6 +54,7 @@ type Service struct {
 	Env          []string     `yaml:"env"`
 	Forwards     []string     `yaml:"forwards"`
 	Recreate     bool         `yaml:"recreate"`
+	LocalPorts   []int
 }
 
 type HealthCheck struct {
@@ -73,6 +74,7 @@ type Dependency struct {
 	Image   string   `yaml:"image" validate:"required"`
 	Volumes []string `yaml:"volumes" validate:"dive,volume_reference"`
 	Env     []string `yaml:"env" validate:"dive"`
+	Ports   []int    `yaml:"ports" validate:"dive,min=1,max=65535"`
 }
 
 type Volume struct {

@@ -1,12 +1,14 @@
 package ssh
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -131,49 +133,106 @@ func getSSHDir() (string, error) {
 
 // CreateSSHTunnel establishes an SSH tunnel from a local port to a remote address through an SSH server.
 // It listens on localPort and forwards connections to remoteAddr via the SSH server at host:port.
-// Authentication is done using the provided user and key (private key bytes).
-func CreateSSHTunnel(host string, port int, user string, key []byte, localPort string, remoteAddr string) error {
-	client, err := NewSSHClientWithKey(host, port, user, key)
+// Authentication is done using the provided user and keyPath (path to the private key file).
+func CreateSSHTunnel(ctx context.Context, host string, port int, user, keyPath, localPort string, remoteAddr string) error {
+	client, _, err := FindKeyAndConnectWithUser(host, port, user, keyPath)
 	if err != nil {
 		return fmt.Errorf("failed to establish SSH connection: %v", err)
 	}
+	defer client.Close()
+
+	// Start keep-alive routine
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_, _, err := client.SendRequest("keepalive@openssh.com", true, nil)
+				if err != nil {
+					fmt.Printf("Failed to send keep-alive packet: %v\n", err)
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	localListener, err := net.Listen("tcp", "localhost:"+localPort)
 	if err != nil {
 		return fmt.Errorf("failed to listen on local port %s: %v", localPort, err)
 	}
 	defer localListener.Close()
-	fmt.Printf("Listening on localhost:%s, forwarding to %s via %s:%d\n", localPort, remoteAddr, host, port)
 
 	for {
-		localConn, err := localListener.Accept()
-		if err != nil {
-			fmt.Printf("Failed to accept local connection: %v\n", err)
-			continue
-		}
-
-		remoteConn, err := client.Dial("tcp", remoteAddr)
-		if err != nil {
-			fmt.Printf("Failed to dial remote address %s: %v\n", remoteAddr, err)
-			localConn.Close()
-			continue
-		}
-
-		go func() {
-			defer localConn.Close()
-			defer remoteConn.Close()
-
-			go func() {
-				_, err := io.Copy(remoteConn, localConn)
-				if err != nil {
-					fmt.Printf("Error copying from local to remote: %v\n", err)
-				}
-			}()
-
-			_, err := io.Copy(localConn, remoteConn)
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			localConn, err := localListener.Accept()
 			if err != nil {
-				fmt.Printf("Error copying from remote to local: %v\n", err)
+				fmt.Printf("Failed to accept local connection: %v\n", err)
+				continue
 			}
-		}()
+
+			remoteConn, err := client.Dial("tcp", remoteAddr)
+			if err != nil {
+				fmt.Printf("Failed to dial remote address %s: %v\n", remoteAddr, err)
+				localConn.Close()
+				continue
+			}
+
+			// Handle the connection in a separate goroutine
+			go handleConnection(localConn, remoteConn)
+		}
 	}
+}
+
+// handleConnection copies data between local and remote connections
+func handleConnection(localConn, remoteConn net.Conn) {
+	defer localConn.Close()
+	defer remoteConn.Close()
+
+	// Use WaitGroup to wait for both directions to finish
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// Copy from local to remote
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(remoteConn, localConn)
+		if err != nil && !isClosedNetworkError(err) {
+			fmt.Printf("Error copying from local to remote: %v\n", err)
+		}
+	}()
+
+	// Copy from remote to local
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(localConn, remoteConn)
+		if err != nil && !isClosedNetworkError(err) {
+			fmt.Printf("Error copying from remote to local: %v\n", err)
+		}
+	}()
+
+	// Wait for both copying goroutines to finish
+	wg.Wait()
+}
+
+// isClosedNetworkError checks if the error is due to closed network connection
+func isClosedNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if err == io.EOF {
+		return true
+	}
+	if netErr, ok := err.(*net.OpError); ok && netErr.Err.Error() == "use of closed network connection" {
+		return true
+	}
+	if strings.Contains(err.Error(), "use of closed network connection") {
+		return true
+	}
+	return false
 }

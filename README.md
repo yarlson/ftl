@@ -17,6 +17,7 @@ FTL is a deployment tool that reduces complexity for projects that don't require
 - Integrated Nginx reverse proxy
 - Multi-provider support (Hetzner, DigitalOcean, Linode, custom servers)
 - Fetch and stream logs from deployed services
+- Establish SSH tunnels to remote dependencies
 
 ## Installation
 
@@ -156,6 +157,48 @@ ftl logs [service] [flags]
   ftl logs -n 50
   ```
 
+### 5. Create SSH Tunnels
+
+Establish SSH tunnels for your dependencies, allowing local access to services running on your server:
+
+```bash
+ftl tunnels [flags]
+```
+
+This command will:
+
+- Connect to your server via SSH
+- Forward local ports to remote ports for all dependencies defined in your configuration
+- Allow you to interact with your dependencies locally as if they were running on your machine
+
+#### Flags
+
+- `-s`, `--server`: (Optional) Specify the server name or index to connect to, if multiple servers are defined.
+
+#### Examples
+
+- Establish tunnels to all dependency ports:
+
+  ```bash
+  ftl tunnels
+  ```
+
+- Specify a server to connect to (if multiple servers are configured):
+
+  ```bash
+  ftl tunnels --server my-project.example.com
+  ```
+
+Press `Ctrl+C` to terminate the tunnels when you're done.
+
+#### Purpose
+
+The `ftl tunnels` command is useful for:
+
+- Accessing dependency services (e.g., databases) running on your server from your local machine
+- Simplifying local development by connecting to remote services without modifying your code
+- Testing and debugging your application against live dependencies
+
 ## How It Works
 
 FTL manages deployments and log retrieval through these main components:
@@ -182,6 +225,13 @@ FTL manages deployments and log retrieval through these main components:
 - Fetches logs from specified services
 - Supports real-time streaming with the `-f` flag
 - Allows limiting the number of log lines with the `-n` flag
+
+### SSH Tunnels (`ftl tunnels`)
+
+- Connects to your server via SSH
+- Establishes port forwarding from local ports to remote ports for all defined dependencies
+- Maintains active tunnels with keep-alive packets
+- Allows for graceful shutdown upon user interruption (Ctrl+C)
 
 ## Use Cases
 
@@ -241,6 +291,7 @@ dependencies:
     volumes: [string] # Volume mappings (format: "volume:path")
     env: # Environment variables
       - KEY=value
+    ports: [int] # Ports to expose for SSH tunneling
 
 volumes: [string] # Named volumes list
 ```
@@ -266,6 +317,7 @@ FTL supports two forms of environment variable substitution in the configuration
 - **Environment Variables**: Set environment variables for services and dependencies, with support for environment variable substitution.
 - **Service Dependencies**: Specify dependent services and their configurations.
 - **Routing Rules**: Define custom routing paths and whether to strip prefixes.
+- **SSH Tunnels**: Specify ports in dependencies to enable SSH tunneling for local access.
 
 ## Example Projects
 

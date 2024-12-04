@@ -240,10 +240,11 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 
 func (d *Deployment) startDependency(project string, dependency *config.Dependency) error {
 	service := &config.Service{
-		Name:    dependency.Name,
-		Image:   dependency.Image,
-		Volumes: dependency.Volumes,
-		Env:     dependency.Env,
+		Name:       dependency.Name,
+		Image:      dependency.Image,
+		Volumes:    dependency.Volumes,
+		Env:        dependency.Env,
+		LocalPorts: dependency.Ports,
 	}
 	if err := d.deployService(project, service); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", dependency.Image, err)
@@ -406,6 +407,10 @@ func (d *Deployment) createContainer(project string, service *config.Service, su
 		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(service.HealthCheck.Interval.Seconds())))
 		args = append(args, "--health-retries", fmt.Sprintf("%d", service.HealthCheck.Retries))
 		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
+	}
+
+	for _, port := range service.LocalPorts {
+		args = append(args, "-p", fmt.Sprintf("127.0.0.1:%d:%d", port, port))
 	}
 
 	if len(service.Forwards) > 0 {
