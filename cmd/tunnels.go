@@ -3,12 +3,13 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/yarlson/ftl/pkg/config"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/yarlson/ftl/pkg/config"
 
 	"github.com/spf13/cobra"
 
