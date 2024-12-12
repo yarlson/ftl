@@ -106,7 +106,30 @@ This command will:
 - Set up user permissions
 - Initialize Docker networks
 
-### 3. Deploy Application
+### 3. Build Application Images
+
+Build Docker images for application services:
+
+```bash
+ftl build [flags]
+```
+
+#### Flags
+
+- `--skip-push`: Skip pushing images to the registry after building.
+
+#### Examples
+
+- Build and push all services:
+  ```bash
+  ftl build
+  ```
+- Build all services but skip pushing to the registry:
+  ```bash
+  ftl build --skip-push
+  ```
+
+### 4. Deploy Application
 
 Deploy your application to the configured servers:
 
@@ -124,7 +147,7 @@ This command will:
 - Perform zero-downtime container replacement
 - Clean up unused resources
 
-### 4. Fetch Logs
+### 5. Fetch Logs
 
 Retrieve logs from your deployed services:
 
@@ -132,32 +155,31 @@ Retrieve logs from your deployed services:
 ftl logs [service] [flags]
 ```
 
-- **service**: (Optional) Name of the service to fetch logs from. If omitted, logs from all services are fetched.
-- **flags**:
-  - `-f`, `--follow`: Stream logs in real-time.
-  - `-n`, `--tail`: Number of lines to show from the end of the logs.
+#### Flags
+
+- `-f`, `--follow`: Stream logs in real-time.
+- `-n`, `--tail <lines>`: Number of lines to show from the end of the logs (default is 100 if `-f` is used).
 
 #### Examples
 
 - Fetch logs from all services:
-
   ```bash
   ftl logs
   ```
-
 - Stream logs from a specific service:
-
   ```bash
   ftl logs my-app -f
   ```
-
 - Fetch the last 50 lines of logs from all services:
-
   ```bash
   ftl logs -n 50
   ```
+- Fetch logs from a specific service with a custom tail size:
+  ```bash
+  ftl logs my-app -n 150
+  ```
 
-### 5. Create SSH Tunnels
+### 6. Create SSH Tunnels
 
 Establish SSH tunnels for your dependencies, allowing local access to services running on your server:
 
@@ -165,31 +187,20 @@ Establish SSH tunnels for your dependencies, allowing local access to services r
 ftl tunnels [flags]
 ```
 
-This command will:
-
-- Connect to your server via SSH
-- Forward local ports to remote ports for all dependencies defined in your configuration
-- Allow you to interact with your dependencies locally as if they were running on your machine
-
 #### Flags
 
-- `-s`, `--server`: (Optional) Specify the server name or index to connect to, if multiple servers are defined.
+- `-s`, `--server <server>`: (Optional) Specify the server name or index to connect to, if multiple servers are defined.
 
 #### Examples
 
 - Establish tunnels to all dependency ports:
-
   ```bash
   ftl tunnels
   ```
-
 - Specify a server to connect to (if multiple servers are configured):
-
   ```bash
   ftl tunnels --server my-project.example.com
   ```
-
-Press `Ctrl+C` to terminate the tunnels when you're done.
 
 #### Purpose
 
@@ -199,125 +210,28 @@ The `ftl tunnels` command is useful for:
 - Simplifying local development by connecting to remote services without modifying your code
 - Testing and debugging your application against live dependencies
 
-## How It Works
+## Additional Notes
 
-FTL manages deployments and log retrieval through these main components:
+### Error Handling
 
-### Server Setup (`ftl setup`)
+All commands include detailed error reporting and user feedback through spinners and console messages. Examples:
 
-- Installs required packages (Docker, basic tools)
-- Configures firewall rules
-- Sets up user permissions
-- Initializes Docker networks
+- Commands gracefully handle configuration file parsing issues.
+- Detailed error messages are provided for server connection or dependency issues.
 
-### Deployment Process (`ftl deploy`)
+### Concurrency
 
-1. Connects to configured servers via SSH
-2. Pulls specified Docker images
-3. Starts new containers with health checks
-4. Configures Nginx reverse proxy
-5. Manages SSL/TLS certificates via ACME
-6. Performs zero-downtime container replacement
-7. Cleans up unused resources
+Commands like `build` and `tunnels` leverage concurrent operations to improve performance. For example:
 
-### Logs Retrieval (`ftl logs`)
+- `ftl build` builds and optionally pushes images for all services concurrently.
+- `ftl tunnels` establishes SSH tunnels for multiple dependencies simultaneously.
 
-- Fetches logs from specified services
-- Supports real-time streaming with the `-f` flag
-- Allows limiting the number of log lines with the `-n` flag
+### Configuration Highlights
 
-### SSH Tunnels (`ftl tunnels`)
+To ensure optimal usage:
 
-- Connects to your server via SSH
-- Establishes port forwarding from local ports to remote ports for all defined dependencies
-- Maintains active tunnels with keep-alive packets
-- Allows for graceful shutdown upon user interruption (Ctrl+C)
-
-## Use Cases
-
-### Suitable For
-
-- Web applications with straightforward deployment needs
-- Projects requiring automated SSL and reverse proxy setup
-- Small to medium services running on single or multiple servers
-- Teams seeking to minimize deployment infrastructure
-- Applications requiring environment-specific configurations
-
-### Not Designed For
-
-- Complex microservice architectures requiring service mesh
-- Systems needing advanced orchestration features
-- Multi-region deployment coordination
-- Specialized compliance environments
-
-## Configuration Options
-
-### Basic Structure
-
-```yaml
-project:
-  name: string # Project identifier (required)
-  domain: string # Primary domain (required, must be FQDN)
-  email: string # Contact email (required, valid email format)
-
-servers:
-  - host: string # Server hostname/IP (required, FQDN or IP)
-    port: int # SSH port (required, 1-65535)
-    user: string # SSH user (required)
-    ssh_key: string # Path to SSH key file (required)
-
-services:
-  - name: string # Service identifier (required)
-    image: string # Docker image (required)
-    port: int # Container port (required, 1-65535)
-    path: string # Service path (default: "./")
-    command: string # Override container command
-    entrypoint: [string] # Override container entrypoint
-    health_check:
-      path: string # Health check endpoint
-      interval: duration # Time between checks
-      timeout: duration # Check timeout
-      retries: int # Number of retries
-    routes:
-      - path: string # Route path prefix (required)
-        strip_prefix: bool # Strip prefix from requests
-    volumes: [string] # Volume mappings (format: "volume:path")
-    env: # Environment variables
-      - KEY=value
-
-dependencies:
-  - name: string # Dependency name (required)
-    image: string # Docker image (required)
-    volumes: [string] # Volume mappings (format: "volume:path")
-    env: # Environment variables
-      - KEY=value
-    ports: [int] # Ports to expose for SSH tunneling
-
-volumes: [string] # Named volumes list
-```
-
-### Environment Variable Substitution
-
-FTL supports two forms of environment variable substitution in the configuration:
-
-1. **Required Variables**: `${VAR_NAME}`
-
-   - Must be present in the environment
-   - Deployment fails if variable is not set
-
-2. **Variables with Defaults**: `${VAR_NAME:-default_value}`
-
-   - Uses the environment variable if set
-   - Falls back to the default value if not set
-
-### Advanced Options
-
-- **Health Checks**: Customize health check endpoints, intervals, timeouts, and retries for each service.
-- **Volume Management**: Define named volumes for persistent data storage.
-- **Environment Variables**: Set environment variables for services and dependencies, with support for environment variable substitution.
-- **Service Dependencies**: Specify dependent services and their configurations.
-- **Routing Rules**: Define custom routing paths and whether to strip prefixes.
-- **SSH Tunnels**: Specify ports in dependencies to enable SSH tunneling for local access.
+- Ensure all dependencies have `ports` specified in `ftl.yaml` for `ftl tunnels` to function.
+- Use health checks in service definitions to ensure reliability during deployment and build processes.
 
 ## Example Projects
 
