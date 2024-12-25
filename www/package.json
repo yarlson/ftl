@@ -1,0 +1,24 @@
+{
+  "name": "ftl-www",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "format": "prettier --write . && biome format --write ."
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.30.3",
+    "@biomejs/biome": "^1.9.4",
+    "@fontsource-variable/roboto-mono": "^5.0.17",
+    "@fontsource-variable/rubik": "^5.0.20",
+    "@fontsource/ibm-plex-mono": "^5.0.8",
+    "astro": "^5.0.2",
+    "prettier": "^3.4.2",
+    "prettier-plugin-astro": "^0.14.1",
+    "sharp": "^0.32.5"
+  }
+}
