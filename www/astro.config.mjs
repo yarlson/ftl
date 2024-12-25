@@ -6,7 +6,12 @@ import starlight from "@astrojs/starlight";
 export default defineConfig({
   integrations: [
     starlight({
-      title: "My Docs",
+      title: "FTL",
+      logo: {
+        light: "./src/assets/ftl-light.svg",
+        dark: "./src/assets/ftl-dark.svg",
+        replacesTitle: true,
+      },
       customCss: [
         "@fontsource-variable/rubik",
         "@fontsource-variable/roboto-mono",
