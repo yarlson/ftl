@@ -17,6 +17,7 @@
     "@fontsource-variable/rubik": "^5.0.20",
     "@fontsource/ibm-plex-mono": "^5.0.8",
     "astro": "^5.0.2",
+    "astro-expressive-code": "^0.38.3",
     "prettier": "^3.4.2",
     "prettier-plugin-astro": "^0.14.1",
     "sharp": "^0.32.5"

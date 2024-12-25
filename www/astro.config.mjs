@@ -12,6 +12,9 @@ export default defineConfig({
         dark: "./src/assets/ftl-dark.svg",
         replacesTitle: true,
       },
+      expressiveCode: {
+        themes: ['catppuccin-mocha', 'catppuccin-latte'],
+      },
       customCss: [
         "@fontsource-variable/rubik",
         "@fontsource-variable/roboto-mono",

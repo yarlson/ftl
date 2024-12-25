@@ -534,3 +534,13 @@ dialog[aria-label="Search"]::backdrop {
     opacity: 1;
   }
 }
+
+.hero-code {
+  margin-top: 0 !important;
+}
+
+.code-block {
+  border: 1px solid var(--divider-color);
+  border-color: color-mix(in srgb, var(--divider-color) 40%, transparent);
+  box-shadow: var(--sl-shadow-lg);
+}
