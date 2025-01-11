@@ -1,0 +1,169 @@
+:root {
+  /* Light mode */
+  --vp-c-bg: var(--flexoki-paper);
+  --vp-c-bg-soft: var(--flexoki-50);
+  --vp-c-bg-mute: var(--flexoki-100);
+  --vp-c-bg-alt: var(--flexoki-200);
+
+  /* Adjusted text colors for better contrast */
+  --vp-c-text-1: var(--flexoki-950); /* Darkened from 900 */
+  --vp-c-text-2: var(--flexoki-800); /* Darkened from 700 */
+  --vp-c-text-3: var(--flexoki-700); /* Darkened from 600 */
+
+  /* Adjusted brand colors for better contrast */
+  --vp-c-brand-1: var(--flexoki-blue-700); /* Darkened from 600 */
+  --vp-c-brand-2: var(--flexoki-blue-600); /* Darkened from 500 */
+  --vp-c-brand-3: var(--flexoki-blue-500); /* Darkened from 400 */
+  --vp-c-brand-soft: var(--flexoki-blue-100);
+
+  /* Buttons with improved contrast */
+  --vp-button-brand-bg: var(--flexoki-blue-700); /* Darkened for better contrast on white */
+  --vp-button-brand-hover-bg: var(--flexoki-blue-800);
+  --vp-button-brand-active-bg: var(--flexoki-blue-900);
+
+  /* Links with improved contrast */
+  --vp-c-link: var(--flexoki-blue-700); /* Darkened from 600 */
+  --vp-c-link-hover: var(--flexoki-blue-800);
+  --vp-c-link-active: var(--flexoki-blue-900);
+
+  /* Borders */
+  --vp-c-border: var(--flexoki-300); /* Darkened for better contrast */
+  --vp-c-divider: var(--flexoki-200);
+  --vp-c-gutter: var(--flexoki-200);
+
+  /* Code blocks */
+  --vp-code-block-bg: var(--flexoki-50);
+  --vp-code-block-divider: var(--flexoki-300);
+  --vp-code-tab-divider: var(--flexoki-300);
+  --vp-code-copy-code-bg: var(--flexoki-100);
+  --vp-code-copy-code-hover-bg: var(--flexoki-200);
+
+  /* Custom block colors with improved contrast */
+  --vp-custom-block-tip-border: var(--flexoki-green-600);
+  --vp-custom-block-tip-text: var(--flexoki-green-900);
+  --vp-custom-block-tip-bg: var(--flexoki-green-50);
+
+  --vp-custom-block-warning-border: var(--flexoki-yellow-600);
+  --vp-custom-block-warning-text: var(--flexoki-yellow-900);
+  --vp-custom-block-warning-bg: var(--flexoki-yellow-50);
+
+  --vp-custom-block-danger-border: var(--flexoki-red-600);
+  --vp-custom-block-danger-text: var(--flexoki-red-900);
+  --vp-custom-block-danger-bg: var(--flexoki-red-50);
+
+  /* Syntax highlighting with improved contrast */
+  --vp-c-text-code: var(--flexoki-magenta-700);
+  --vp-code-line-highlight-bg: var(--flexoki-yellow-100);
+  --vp-code-line-number-color: var(--flexoki-600);
+
+  /* Sidebar and Navigation */
+  --vp-sidebar-bg-color: var(--vp-c-bg-soft);
+  --vp-c-bg-navbar: var(--vp-c-bg-soft);
+  --vp-c-text-nav: var(--vp-c-text-1);
+  --vp-c-text-sidebar: var(--vp-c-text-1);
+  --vp-sidebar-border-color: var(--vp-c-border);
+  --vp-c-brand: var(--vp-c-brand-1);
+  --vp-c-brand-dark: var(--vp-c-brand-2);
+}
+
+/* Dark mode */
+.dark {
+  --vp-c-bg: var(--flexoki-black);
+  --vp-c-bg-soft: var(--flexoki-950);
+  --vp-c-bg-mute: var(--flexoki-900);
+  --vp-c-bg-alt: var(--flexoki-850);
+
+  /* Adjusted text colors for better contrast */
+  --vp-c-text-1: var(--flexoki-50);  /* Lightened from 100 */
+  --vp-c-text-2: var(--flexoki-200); /* Lightened from 300 */
+  --vp-c-text-3: var(--flexoki-300); /* Lightened from 400 */
+
+  /* Adjusted brand colors for better contrast */
+  --vp-c-brand-1: var(--flexoki-blue-300); /* Lightened from 400 */
+  --vp-c-brand-2: var(--flexoki-blue-200); /* Lightened from 500 */
+  --vp-c-brand-3: var(--flexoki-blue-100); /* Lightened from 600 */
+  --vp-c-brand-soft: var(--flexoki-blue-800);
+
+  /* Buttons with improved contrast */
+  --vp-button-brand-bg: var(--flexoki-blue-300);
+  --vp-button-brand-hover-bg: var(--flexoki-blue-200);
+  --vp-button-brand-active-bg: var(--flexoki-blue-100);
+
+  /* Links with improved contrast */
+  --vp-c-link: var(--flexoki-blue-300);
+  --vp-c-link-hover: var(--flexoki-blue-200);
+  --vp-c-link-active: var(--flexoki-blue-100);
+
+  /* Borders */
+  --vp-c-border: var(--flexoki-700); /* Lightened for better contrast */
+  --vp-c-divider: var(--flexoki-800);
+  --vp-c-gutter: var(--flexoki-800);
+
+  /* Code blocks */
+  --vp-code-block-bg: var(--flexoki-950);
+  --vp-code-block-divider: var(--flexoki-700);
+  --vp-code-tab-divider: var(--flexoki-700);
+  --vp-code-copy-code-bg: var(--flexoki-900);
+  --vp-code-copy-code-hover-bg: var(--flexoki-800);
+
+  /* Custom block colors with improved contrast */
+  --vp-custom-block-tip-border: var(--flexoki-green-500);
+  --vp-custom-block-tip-text: var(--flexoki-green-200);
+  --vp-custom-block-tip-bg: var(--flexoki-green-900);
+
+  --vp-custom-block-warning-border: var(--flexoki-yellow-500);
+  --vp-custom-block-warning-text: var(--flexoki-yellow-200);
+  --vp-custom-block-warning-bg: var(--flexoki-yellow-900);
+
+  --vp-custom-block-danger-border: var(--flexoki-red-500);
+  --vp-custom-block-danger-text: var(--flexoki-red-200);
+  --vp-custom-block-danger-bg: var(--flexoki-red-900);
+
+  /* Syntax highlighting with improved contrast */
+  --vp-c-text-code: var(--flexoki-magenta-300);
+  --vp-code-line-highlight-bg: var(--flexoki-yellow-900);
+  --vp-code-line-number-color: var(--flexoki-500);
+
+  /* Sidebar and Navigation - Dark mode */
+  --vp-sidebar-bg-color: var(--vp-c-bg-soft);
+  --vp-c-bg-navbar: var(--vp-c-bg-soft);
+  --vp-c-text-nav: var(--vp-c-text-1);
+  --vp-c-text-sidebar: var(--vp-c-text-1);
+  --vp-sidebar-border-color: var(--vp-c-border);
+}
+
+/* Rest of the styles remain the same */
+.VPSidebar {
+  border-right: 1px solid var(--vp-c-border);
+}
+
+.VPSidebarItem.level-0 > .item .text,
+.VPSidebarItem.level-1 > .item .text {
+  font-weight: 500;
+}
+
+.VPSidebarItem .item.is-active:not(.has-active) {
+  background-color: var(--vp-c-brand-soft);
+}
+
+.VPNav {
+  border-bottom: 1px solid var(--vp-c-border);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--vp-c-bg-soft);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--vp-c-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vp-c-text-3);
+}
