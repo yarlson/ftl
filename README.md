@@ -110,7 +110,46 @@ This command will:
 
 ### 3. Build Application Images
 
-Build Docker images for application services:
+Build and deploy Docker images for your services. FTL offers two ways to handle images:
+
+#### Direct SSH Transfer (Default)
+
+When no `image` field is specified in your service configuration, FTL will:
+- Build the image locally
+- Transfer it directly to your server via SSH
+- Use its own layer caching algorithm to optimize transfers
+- Only transfer layers that haven't been previously sent to the server
+
+```yaml
+services:
+  - name: web
+    build:
+      context: .
+      dockerfile: Dockerfile
+```
+
+#### Registry-based Deployment
+
+When you specify the `image` field, FTL will use a Docker registry:
+- Build and tag the image locally
+- Push it to the specified registry
+- Pull the image on the server during deployment
+- Require registry authentication during server setup (username/password only)
+
+```yaml
+services:
+  - name: web
+    image: registry.example.com/my-app:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+```
+
+::: warning
+Currently, FTL only supports registries with username/password authentication. Token-based authentication will fail.
+:::
+
+#### Build Command
 
 ```bash
 ftl build [flags]
@@ -118,15 +157,15 @@ ftl build [flags]
 
 #### Flags
 
-- `--skip-push`: Skip pushing images to the registry after building.
+- `--skip-push`: Skip pushing images to the registry (only applies when using registry-based deployment)
 
 #### Examples
 
-- Build and push all services:
+- Build all services (using direct SSH transfer):
   ```bash
   ftl build
   ```
-- Build all services but skip pushing to the registry:
+- Build all services but skip pushing to registry (when using registry-based deployment):
   ```bash
   ftl build --skip-push
   ```
