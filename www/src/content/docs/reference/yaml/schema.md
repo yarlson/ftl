@@ -1,4 +1,0 @@
----
-title: schema
-description: schema
----

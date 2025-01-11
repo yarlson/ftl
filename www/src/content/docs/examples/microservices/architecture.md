@@ -1,4 +1,0 @@
----
-title: architecture
-description: architecture
----
