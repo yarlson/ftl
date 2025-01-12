@@ -51,7 +51,7 @@ Make sure you have Go 1.21 or later installed before building from source.
 After installation, verify that FTL is properly installed:
 
 ```bash
-ftl --version
+ftl version
 ```
 
 You should see output showing the current version of FTL.
@@ -117,7 +117,7 @@ After installing FTL, you should:
 
 3. Verify FTL installation:
    ```bash
-   ftl --version
+   ftl version
    ```
 
 ::: tip Registry Authentication
