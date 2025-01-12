@@ -2,6 +2,8 @@
 
 FTL is a lightweight deployment tool designed to simplify cloud deployments without the complexity of traditional CI/CD pipelines or container orchestration platforms. It provides automated, zero-downtime deployments to various cloud providers through a single YAML configuration file.
 
+For comprehensive documentation, visit [https://ftl-deploy.org](https://ftl-deploy.org)
+
 ## Features
 
 - Zero-downtime deployments with automated health checks
