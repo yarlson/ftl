@@ -83,6 +83,7 @@ func Print(a ...interface{}) {
 // Reset ensures the cursor is visible and terminal is in a normal state.
 func Reset() {
 	_ = os.Stdout.Sync()
+	fmt.Print("\033[?25h")
 }
 
 func ClearPreviousLine() {
