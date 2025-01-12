@@ -140,6 +140,20 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 	suite.cleanupDeployment()
 	defer suite.cleanupDeployment()
 
+	// Create certs volume and copy certificates before deployment
+	certsCmds := [][]string{
+		{"docker", "volume", "create", "test-project-certs"},
+		{"docker", "container", "create", "--name", "temp-container", "-v", "test-project-certs:/etc/nginx/ssl", "alpine"},
+		{"docker", "cp", proxyCertPath, "temp-container:/etc/nginx/ssl/localhost.crt"},
+		{"docker", "cp", proxyKeyPath, "temp-container:/etc/nginx/ssl/localhost.key"},
+		{"docker", "rm", "temp-container"},
+	}
+
+	for _, cmd := range certsCmds {
+		output, err := suite.deployment.runCommand(context.Background(), cmd[0], cmd[1:]...)
+		suite.Require().NoError(err, "Command output: %s", output)
+	}
+
 	suite.Run("Successful deployment", func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -236,6 +250,7 @@ func (suite *DeploymentTestSuite) cleanupDeployment() {
 		"test-project-redis_data",
 		"test-project-rabbitmq_data",
 		"test-project-elasticsearch_data",
+		"certs",
 	}
 
 	for _, container := range containers {
