@@ -55,6 +55,7 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 	spinner.Complete()
 
 	// Create volumes
+	cfg.Volumes = append(cfg.Volumes, "certs")
 	if err := d.createVolumes(ctx, project, cfg.Volumes); err != nil {
 		return fmt.Errorf("failed to create volumes: %w", err)
 	}
@@ -193,7 +194,7 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 		Image: "yarlson/zero-nginx:latest",
 		Port:  80,
 		Volumes: []string{
-			projectPath + "/:/etc/nginx/ssl",
+			"certs:/etc/nginx/ssl",
 			configPath + ":/etc/nginx/conf.d",
 		},
 		Env: []string{
