@@ -44,6 +44,14 @@ sudo mv ftl /usr/local/bin/
 go install github.com/yarlson/ftl@latest
 ```
 
+### Verify Installation
+
+After installing FTL, verify it's working correctly by checking the version:
+
+```bash
+ftl version
+```
+
 ## Configuration
 
 Create an `ftl.yaml` file in your project root:
