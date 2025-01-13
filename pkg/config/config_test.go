@@ -156,3 +156,104 @@ volumes:
 	assert.Contains(suite.T(), err.Error(), "validation error")
 	assert.Contains(suite.T(), err.Error(), "Config.Dependencies[0].Volumes[0]")
 }
+
+func (suite *ConfigTestSuite) TestParseConfig_WithHooks() {
+	yamlData := []byte(`
+project:
+  name: "test-project"
+  domain: "example.com"
+  email: "test@example.com"
+servers:
+  - host: "example.com"
+    port: 22
+    user: "user"
+    ssh_key: "~/.ssh/id_rsa"
+services:
+  - name: "web"
+    image: "nginx:latest"
+    port: 80
+    routes:
+      - path: "/"
+    hooks:
+      pre: "echo 'local pre-hook'"
+      post: "echo 'local post-hook'"
+`)
+
+	config, err := ParseConfig(yamlData)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config)
+	assert.NotNil(suite.T(), config.Services[0].Hooks)
+
+	// Test Pre Hooks
+	assert.NotNil(suite.T(), config.Services[0].Hooks.Pre)
+	assert.Equal(suite.T(), "echo 'local pre-hook'", config.Services[0].Hooks.Pre)
+
+	// Test Post Hooks
+	assert.NotNil(suite.T(), config.Services[0].Hooks.Post)
+	assert.Equal(suite.T(), "echo 'local post-hook'", config.Services[0].Hooks.Post)
+}
+
+func (suite *ConfigTestSuite) TestParseConfig_PartialHooks() {
+	yamlData := []byte(`
+project:
+  name: "test-project"
+  domain: "example.com"
+  email: "test@example.com"
+servers:
+  - host: "example.com"
+    port: 22
+    user: "user"
+    ssh_key: "~/.ssh/id_rsa"
+services:
+  - name: "web"
+    image: "nginx:latest"
+    port: 80
+    routes:
+      - path: "/"
+    hooks:
+      pre: "echo 'only local pre-hook'"
+`)
+
+	config, err := ParseConfig(yamlData)
+
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config)
+	assert.NotNil(suite.T(), config.Services[0].Hooks)
+
+	// Test Pre Hooks
+	assert.NotNil(suite.T(), config.Services[0].Hooks.Pre)
+	assert.Equal(suite.T(), "echo 'only local pre-hook'", config.Services[0].Hooks.Pre)
+
+	// Test Post Hooks
+	assert.NotNil(suite.T(), config.Services[0].Hooks.Post)
+	assert.Equal(suite.T(), "", config.Services[0].Hooks.Post)
+}
+
+func (suite *ConfigTestSuite) TestParseConfig_InvalidHookFormat() {
+	yamlData := []byte(`
+project:
+  name: "test-project"
+  domain: "example.com"
+  email: "test@example.com"
+servers:
+  - host: "example.com"
+    port: 22
+    user: "user"
+    ssh_key: "~/.ssh/id_rsa"
+services:
+  - name: "web"
+    image: "nginx:latest"
+    port: 80
+    routes:
+      - path: "/"
+    hooks:
+      pre:
+        invalid_field: true
+`)
+
+	config, err := ParseConfig(yamlData)
+
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), config)
+}

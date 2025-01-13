@@ -55,6 +55,7 @@ type Service struct {
 	Forwards     []string     `yaml:"forwards"`
 	Recreate     bool         `yaml:"recreate"`
 	LocalPorts   []int
+	Hooks        *Hooks
 }
 
 type HealthCheck struct {
@@ -80,6 +81,11 @@ type Dependency struct {
 type Volume struct {
 	Name string `yaml:"name" validate:"required"`
 	Path string `yaml:"path" validate:"required,unix_path"`
+}
+
+type Hooks struct {
+	Pre  string `yaml:"pre"`
+	Post string `yaml:"post"`
 }
 
 func ParseConfig(data []byte) (*Config, error) {
