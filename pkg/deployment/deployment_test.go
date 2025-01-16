@@ -215,10 +215,11 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		fmt.Printf("Total requests: %d\n", requestStats.totalRequests)
 		fmt.Printf("Failed requests: %d\n", requestStats.failedRequests)
 
-		serviceName := "web"
 		suite.Require().Equal(int32(0), requestStats.failedRequests, "Expected zero failed requests during zero-downtime deployment")
 
-		containerInfo := suite.inspectContainer(serviceName)
+		serviceName := "web"
+		containerName := containerName(project, serviceName, "")
+		containerInfo := suite.inspectContainer(containerName)
 
 		suite.Run("Updated Container State and Config", func() {
 			state := containerInfo["State"].(map[string]interface{})

@@ -77,7 +77,8 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 	}
 
 	if containerStatus == ContainerStatusStopped {
-		if err := d.startContainer(service); err != nil {
+		container := containerName(project, service.Name, "")
+		if err := d.startContainer(container); err != nil {
 			return fmt.Errorf("failed to start container %s: %w", service.Name, err)
 		}
 		return nil
@@ -91,17 +92,17 @@ func (d *Deployment) installService(project string, service *config.Service) err
 		return fmt.Errorf("failed to start container for %s: %v", service.Image, err)
 	}
 
-	svcName := service.Name
+	container := containerName(project, service.Name, "")
 
-	if err := d.performHealthChecks(svcName, service.HealthCheck); err != nil {
-		return fmt.Errorf("install failed for %s: container is unhealthy: %w", svcName, err)
+	if err := d.performHealthChecks(container, service.HealthCheck); err != nil {
+		return fmt.Errorf("install failed for %s: container is unhealthy: %w", container, err)
 	}
 
 	return nil
 }
 
 func (d *Deployment) updateService(project string, service *config.Service) error {
-	svcName := service.Name
+	container := containerName(project, service.Name, "")
 
 	if service.Recreate {
 		if err := d.recreateService(project, service); err != nil {
@@ -111,23 +112,23 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 	}
 
 	if err := d.createContainer(project, service, newContainerSuffix); err != nil {
-		return fmt.Errorf("failed to start new container for %s: %v", svcName, err)
+		return fmt.Errorf("failed to start new container for %s: %v", container, err)
 	}
 
-	if err := d.performHealthChecks(svcName+newContainerSuffix, service.HealthCheck); err != nil {
-		if _, err := d.runCommand(context.Background(), "docker", "rm", "-f", svcName+newContainerSuffix); err != nil {
-			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", svcName, err)
+	if err := d.performHealthChecks(container+newContainerSuffix, service.HealthCheck); err != nil {
+		if _, err := d.runCommand(context.Background(), "docker", "rm", "-f", container+newContainerSuffix); err != nil {
+			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", container, err)
 		}
-		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", svcName, err)
+		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", container, err)
 	}
 
-	oldContID, err := d.switchTraffic(project, svcName)
+	oldContID, err := d.switchTraffic(project, service.Name)
 	if err != nil {
-		return fmt.Errorf("failed to switch traffic for %s: %v", svcName, err)
+		return fmt.Errorf("failed to switch traffic for %s: %v", container, err)
 	}
 
-	if err := d.cleanup(oldContID, svcName); err != nil {
-		return fmt.Errorf("failed to cleanup for %s: %v", svcName, err)
+	if err := d.cleanup(project, oldContID, service.Name); err != nil {
+		return fmt.Errorf("failed to cleanup for %s: %v", container, err)
 	}
 
 	return nil
@@ -162,7 +163,7 @@ func (d *Deployment) recreateService(project string, service *config.Service) er
 }
 
 func (d *Deployment) switchTraffic(project, service string) (string, error) {
-	newContainer := service + newContainerSuffix
+	newContainer := containerName(project, service, newContainerSuffix)
 	oldContainer, err := d.getContainerID(project, service)
 	if err != nil {
 		return "", fmt.Errorf("failed to get old container ID: %v", err)
@@ -194,11 +195,13 @@ func (d *Deployment) switchTraffic(project, service string) (string, error) {
 	return oldContainer, nil
 }
 
-func (d *Deployment) cleanup(oldContID, service string) error {
+func (d *Deployment) cleanup(project, oldContID, service string) error {
+	oldContainer := containerName(project, service, newContainerSuffix)
+	newContainer := containerName(project, service, "")
 	cmds := [][]string{
 		{"docker", "stop", oldContID},
 		{"docker", "rm", oldContID},
-		{"docker", "rename", service + newContainerSuffix, service},
+		{"docker", "rename", oldContainer, newContainer},
 	}
 
 	for _, cmd := range cmds {

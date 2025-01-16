@@ -127,19 +127,19 @@ func (d *Deployment) performHealthChecks(container string, healthCheck *config.H
 	return fmt.Errorf("container failed to become healthy\n\x1b[93mOutput from the container:\x1b[0m\n%s", grayOutput)
 }
 
-func (d *Deployment) startContainer(service *config.Service) error {
-	_, err := d.runCommand(context.Background(), "docker", "start", service.Name)
+func (d *Deployment) startContainer(container string) error {
+	_, err := d.runCommand(context.Background(), "docker", "start", container)
 	if err != nil {
-		return fmt.Errorf("failed to start container for %s: %v", service.Name, err)
+		return fmt.Errorf("failed to start container for %s: %v", container, err)
 	}
 
 	return nil
 }
 
 func (d *Deployment) createContainer(project string, service *config.Service, suffix string) error {
-	svcName := service.Name
+	container := containerName(project, service.Name, suffix)
 
-	args := []string{"run", "-d", "--name", svcName + suffix, "--network", project, "--network-alias", svcName + suffix, "--restart", "unless-stopped"}
+	args := []string{"run", "-d", "--name", container, "--network", project, "--network-alias", service.Name + suffix, "--restart", "unless-stopped"}
 
 	for _, value := range service.Env {
 		args = append(args, "-e", value)
@@ -218,4 +218,8 @@ func (d *Deployment) containerShouldBeUpdated(project string, service *config.Se
 	}
 
 	return containerInfo.Config.Labels["ftl.config-hash"] != hash, nil
+}
+
+func containerName(project, service, suffix string) string {
+	return fmt.Sprintf("%s-%s%s", project, service, suffix)
 }
