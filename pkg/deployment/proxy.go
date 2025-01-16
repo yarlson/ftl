@@ -34,7 +34,7 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 	spinner = d.sm.AddSpinner("proxy", fmt.Sprintf("[%s] Deploying proxy service", hostname))
 	service := &config.Service{
 		Name:  "proxy",
-		Image: "yarlson/zero-nginx:latest",
+		Image: "yarlson/zero-nginx:1.27-alpine3.20-zero0.2.1",
 		Port:  80,
 		Volumes: []string{
 			"certs:/etc/nginx/ssl",
@@ -125,7 +125,7 @@ func (d *Deployment) reloadNginxConfig(ctx context.Context) error {
 func (d *Deployment) deployCertRenewer(project string, cfg *config.Config) error {
 	service := &config.Service{
 		Name:  "certrenewer",
-		Image: "yarlson/zero-nginx:1.27-alpine3.19-zero0.2.0-0.2",
+		Image: "yarlson/zero-nginx:1.27-alpine3.20-zero0.2.1",
 		Volumes: []string{
 			"certs:/etc/nginx/ssl",
 			"/var/run/docker.sock:/var/run/docker.sock",
@@ -144,4 +144,4 @@ func (d *Deployment) deployCertRenewer(project string, cfg *config.Config) error
 	}
 
 	return nil
-} 
+}
