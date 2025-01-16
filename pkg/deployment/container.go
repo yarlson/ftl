@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/yarlson/ftl/pkg/config"
 )
@@ -124,4 +125,97 @@ func (d *Deployment) performHealthChecks(container string, healthCheck *config.H
 	grayOutput := "\x1b[90m" + cleanedOutput + "\x1b[0m"
 
 	return fmt.Errorf("container failed to become healthy\n\x1b[93mOutput from the container:\x1b[0m\n%s", grayOutput)
+}
+
+func (d *Deployment) startContainer(service *config.Service) error {
+	_, err := d.runCommand(context.Background(), "docker", "start", service.Name)
+	if err != nil {
+		return fmt.Errorf("failed to start container for %s: %v", service.Name, err)
+	}
+
+	return nil
+}
+
+func (d *Deployment) createContainer(project string, service *config.Service, suffix string) error {
+	svcName := service.Name
+
+	args := []string{"run", "-d", "--name", svcName + suffix, "--network", project, "--network-alias", svcName + suffix, "--restart", "unless-stopped"}
+
+	for _, value := range service.Env {
+		args = append(args, "-e", value)
+	}
+
+	for _, volume := range service.Volumes {
+		if unicode.IsLetter(rune(volume[0])) {
+			volume = fmt.Sprintf("%s-%s", project, volume)
+		}
+		args = append(args, "-v", volume)
+	}
+
+	if service.HealthCheck != nil {
+		args = append(args, "--health-cmd", fmt.Sprintf("curl -sf http://localhost:%d%s || exit 1", service.Port, service.HealthCheck.Path))
+		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(service.HealthCheck.Interval.Seconds())))
+		args = append(args, "--health-retries", fmt.Sprintf("%d", service.HealthCheck.Retries))
+		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
+	}
+
+	for _, port := range service.LocalPorts {
+		args = append(args, "-p", fmt.Sprintf("127.0.0.1:%d:%d", port, port))
+	}
+
+	if len(service.Forwards) > 0 {
+		for _, forward := range service.Forwards {
+			args = append(args, "-p", forward)
+		}
+	}
+
+	hash, err := service.Hash()
+	if err != nil {
+		return fmt.Errorf("failed to generate config hash: %w", err)
+	}
+	args = append(args, "--label", fmt.Sprintf("ftl.config-hash=%s", hash))
+
+	if len(service.Entrypoint) > 0 {
+		args = append(args, "--entrypoint", strings.Join(service.Entrypoint, " "))
+	}
+
+	image := service.Image
+	if image == "" {
+		image = fmt.Sprintf("%s-%s", project, service.Name)
+	}
+	args = append(args, image)
+
+	if service.Command != "" {
+		args = append(args, service.Command)
+	}
+
+	_, err = d.runCommand(context.Background(), "docker", args...)
+	return err
+}
+
+func (d *Deployment) containerShouldBeUpdated(project string, service *config.Service) (bool, error) {
+	containerInfo, err := d.getContainerInfo(project, service.Name)
+	if err != nil {
+		return false, fmt.Errorf("failed to get container info: %w", err)
+	}
+
+	imageHash, err := d.getImageHash(service.Image)
+	if err != nil {
+		return false, fmt.Errorf("failed to get image hash: %w", err)
+	}
+
+	if service.Image == "" && service.ImageUpdated {
+		return true, nil
+	}
+
+	if service.Image != "" && containerInfo.Image != imageHash {
+		return true, nil
+	}
+
+	hash, err := service.Hash()
+	if err != nil {
+		return false, fmt.Errorf("failed to generate config hash: %w", err)
+	}
+
+	return containerInfo.Config.Labels["ftl.config-hash"] != hash, nil
 }

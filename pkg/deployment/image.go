@@ -51,30 +51,3 @@ func (d *Deployment) getImageHash(imageName string) (string, error) {
 
 	return strings.TrimSpace(output), nil
 }
-
-func (d *Deployment) containerShouldBeUpdated(project string, service *config.Service) (bool, error) {
-	containerInfo, err := d.getContainerInfo(project, service.Name)
-	if err != nil {
-		return false, fmt.Errorf("failed to get container info: %w", err)
-	}
-
-	imageHash, err := d.getImageHash(service.Image)
-	if err != nil {
-		return false, fmt.Errorf("failed to get image hash: %w", err)
-	}
-
-	if service.Image == "" && service.ImageUpdated {
-		return true, nil
-	}
-
-	if service.Image != "" && containerInfo.Image != imageHash {
-		return true, nil
-	}
-
-	hash, err := service.Hash()
-	if err != nil {
-		return false, fmt.Errorf("failed to generate config hash: %w", err)
-	}
-
-	return containerInfo.Config.Labels["ftl.config-hash"] != hash, nil
-} 
