@@ -1,26 +1,26 @@
 ---
 layout: home
-title: FTL - Faster Than Light Deployment Tool
-description: Simple Docker deployment tool with zero-downtime updates, SSL automation, and database provisioning. No registry required.
+title: FTL - Simple Docker Deployment Tool for Developers
+description: Deploy web applications easily without DevOps expertise. Free SSL, database management, and zero-downtime updates. Simple alternative to Kamal, Sidekick and complex deployment tools.
 head:
   - - meta
     - name: keywords
-      content: deployment tool, docker deployment, zero-downtime deployment, SSL automation, database provisioning
+      content: docker deployment, web app deployment, kamal alternative, sidekick alternative, zero-downtime deployment, SSL automation, database provisioning, simple deployment tool, deploy without devops, easy deployment
   - - meta
     - name: og:title
-      content: FTL - Faster Than Light Deployment Tool
+      content: FTL - Simple Docker Deployment Tool for Developers
   - - meta
     - name: og:description
-      content: Simple Docker deployment tool with zero-downtime updates, SSL automation, and database provisioning. No registry required.
+      content: Deploy web applications easily without DevOps expertise. Free SSL, database management, and zero-downtime updates. Simple alternative to Kamal, Sidekick and complex deployment tools.
   - - meta
     - name: og:type
       content: website
   - - meta
     - name: twitter:title
-      content: FTL - Faster Than Light Deployment Tool
+      content: FTL - Simple Docker Deployment Tool for Developers
   - - meta
     - name: twitter:description
-      content: Simple Docker deployment tool with zero-downtime updates, SSL automation, and database provisioning. No registry required.
+      content: Deploy web applications easily without DevOps expertise. Free SSL, database management, and zero-downtime updates. Simple alternative to Kamal, Sidekick and complex deployment tools.
 ---
 
 <style>
@@ -76,44 +76,44 @@ head:
 
 # FTL: Faster Than Light Deployment
 
-Simple, zero-downtime deployments without the complexity of traditional CI/CD pipelines.
+Deploy your web applications to production servers without complexity. FTL handles everything from server setup to SSL certificates.
 
 <div class="feature-list">
 
-📦 Single binary installation
+🚀 Deploy with a single command 
 
-✨ Simple YAML configuration
+🔒 Automatic server security setup
 
-🔐 Automated SSL/TLS management
+🌐 Free SSL certificates included
 
-🐳 Registry-optional Docker deployment
+📦 Database setup and management
 
-🚀 Zero-downtime updates
+♻️ Updates without downtime
 
-🗄️ Database provisioning included
+🛠️ No DevOps expertise needed
 
 </div>
 
 <div class="quick-links">
 
-## Quick Start
+## Get Started in Minutes
 
 <ul class="quick-links-list">
   <li>
-    <a href="/getting-started/installation">Installation</a>
-    <span>Install via package manager or download binary</span>
+    <a href="/getting-started/installation">Install FTL</a>
+    <span>One command to install on your computer</span>
   </li>
   <li>
-    <a href="/getting-started/first-deployment">First Deployment</a>
-    <span>Basic setup and deployment walkthrough</span>
+    <a href="/getting-started/first-deployment">Deploy Your First App</a>
+    <span>Step-by-step guide to your first deployment</span>
   </li>
   <li>
-    <a href="/configuration/">Configuration Guide</a>
-    <span>YAML configuration reference</span>
+    <a href="/guides/concepts">Core Concepts</a>
+    <span>Learn the basics of deployment</span>
   </li>
   <li>
-    <a href="/reference/cli-commands">CLI Reference</a>
-    <span>Command syntax and options</span>
+    <a href="/examples/">Example Projects</a>
+    <span>Ready-to-use deployment examples</span>
   </li>
 </ul>
 
@@ -123,53 +123,59 @@ Simple, zero-downtime deployments without the complexity of traditional CI/CD pi
 <div class="code">
 
 ```yaml
+# Simple configuration - just fill in your details
 project:
-  name: my-project
-  domain: my-project.example.com
-  email: my-project@example.com
+  name: my-website        # Your project name
+  domain: mysite.com      # Your domain name
+  email: me@mysite.com    # Your email for SSL
 
+# Your server details from your hosting provider
 servers:
-  - host: my-project.example.com
-    port: 22
-    user: my-project
+  - host: 64.23.132.12   # Your server IP
+    user: deploy         
     ssh_key: ~/.ssh/id_rsa
 
+# Your application
 services:
-  - name: my-app
-    image: my-app:latest
-    port: 80
-    health_check:
-      path: /
-      interval: 10s
-      timeout: 5s
-      retries: 3
+  - name: website
+    port: 3000           # Your app's port
 
-routes:
-  - path: /
-    strip_prefix: false
-
+# Need a database? Just add it here
 dependencies:
   - name: postgres
     image: postgres:16
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    env:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-app}
 ```
 
 </div>
 </div>
 
-## About FTL
+## What is FTL?
 
-FTL is a deployment tool that uses SSH to manage Docker containers on remote servers. It's a single binary that handles deployment without requiring a container registry or CI/CD pipeline.
+FTL helps developers deploy web applications to production servers. It automates all the complex parts of deployment that usually require DevOps expertise:
 
-### How It Works
+- Sets up your server with all required security
+- Installs and configures your database
+- Gets free SSL certificates for your domain
+- Keeps your site running during updates
 
-FTL executes Docker commands over SSH, handling image builds, container deployment, and infrastructure configuration. It manages Nginx routing, Let's Encrypt certificates, health checks, and database containers with persistent storage.
+### How Simple Is It?
 
-### When to Use
+1. Install FTL on your computer
+2. Rent a basic server from any provider
+3. Create a simple config file
+4. Run `ftl deploy`
 
-FTL is optimal for deployments to 1-5 servers where direct SSH access is available. Not suitable for distributed systems or multi-region deployments.
+That's it. FTL handles everything else - server setup, security, SSL, databases, and more.
+
+### Perfect For
+
+- Developers deploying their first production application
+- Small to medium web applications
+- Teams without dedicated DevOps engineers
+- Anyone who wants to focus on coding, not server management
+
+### When to Consider Alternatives
+
+- Applications needing multiple servers in different regions
+- Large enterprise applications
+- Microservice architectures with many components
