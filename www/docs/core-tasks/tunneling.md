@@ -5,7 +5,7 @@ description: Create SSH tunnels to access remote services during development
 
 # Tunneling
 
-FTL can establish SSH tunnels to your remote dependencies, allowing local access to services running on your servers.
+FTL can establish SSH tunnels to your remote dependencies, allowing local access to services running on your server.
 
 ## Basic Usage
 
@@ -14,20 +14,6 @@ Create tunnels to all dependency ports:
 ```bash
 ftl tunnels
 ```
-
-## Command Options
-
-### Server Selection
-
-When multiple servers are configured, specify the target server:
-
-```bash
-ftl tunnels --server my-project.example.com
-```
-
-### Command Flags
-
-- `-s`, `--server <server>`: Specify the server name or index to connect to
 
 ## Purpose
 

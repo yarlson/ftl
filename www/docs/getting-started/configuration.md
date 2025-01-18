@@ -17,11 +17,11 @@ project:
   domain: my-project.example.com
   email: my-project@example.com
 
-servers:
-  - host: my-project.example.com
-    port: 22
-    user: my-project
-    ssh_key: ~/.ssh/id_rsa
+server:
+  host: example.com
+  port: 22
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
 
 services:
   - name: web
@@ -52,30 +52,15 @@ project:
 
 ### Server Configuration
 
-The `servers` section specifies your deployment targets:
+The `server` section specifies your deployment target:
 
 ```yaml
-servers:
-  - host: example.com # Required: Server hostname or IP
-    port: 22 # Optional: SSH port (defaults to 22)
-    user: deploy # Required: SSH user
-    ssh_key: ~/.ssh/id_rsa # Required: Path to SSH private key
+server:
+  host: example.com
+  port: 22
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
 ```
-
-::: tip Multiple Servers
-You can define multiple servers for load balancing or high availability:
-
-```yaml
-servers:
-  - host: server1.example.com
-    user: deploy
-    ssh_key: ~/.ssh/id_rsa
-  - host: server2.example.com
-    user: deploy
-    ssh_key: ~/.ssh/id_rsa
-```
-
-:::
 
 ### Services
 

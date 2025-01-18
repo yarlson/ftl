@@ -125,7 +125,7 @@ If you plan to use a Docker registry, ensure you have:
 
 - Registry URL
 - Username/password credentials (token-based auth not supported)
-- Network access to the registry from both local machine and servers
+- Network access to the registry from both local machine and server
   :::
 
 ## Troubleshooting

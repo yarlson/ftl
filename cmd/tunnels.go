@@ -9,10 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/yarlson/ftl/pkg/config"
-
 	"github.com/spf13/cobra"
 
+	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/ssh"
 )
@@ -27,8 +26,6 @@ forwarding local ports to remote ports.`,
 
 func init() {
 	rootCmd.AddCommand(tunnelsCmd)
-
-	tunnelsCmd.Flags().StringP("server", "s", "", "Server name or index to connect to")
 }
 
 func runTunnels(cmd *cobra.Command, args []string) {
@@ -43,15 +40,6 @@ func runTunnels(cmd *cobra.Command, args []string) {
 		spinner.ErrorWithMessagef("Failed to parse config file: %v", err)
 		return
 	}
-
-	serverName, _ := cmd.Flags().GetString("server")
-	serverConfig, err := selectServer(cfg, serverName)
-	if err != nil {
-		spinner.ErrorWithMessagef("Server selection failed: %v", err)
-		return
-	}
-
-	user := serverConfig.User
 
 	tunnels, err := collectDependencyTunnels(cfg)
 	if err != nil {
@@ -73,9 +61,9 @@ func runTunnels(cmd *cobra.Command, args []string) {
 		wg.Add(1)
 		go func(t TunnelConfig) {
 			defer wg.Done()
-			err := ssh.CreateSSHTunnel(ctx, serverConfig.Host, serverConfig.Port, user, serverConfig.SSHKey, t.LocalPort, t.RemoteAddr)
+			err := ssh.CreateSSHTunnel(ctx, cfg.Server.Host, cfg.Server.Port, cfg.Server.User, cfg.Server.SSHKey, t.LocalPort, t.RemoteAddr)
 			if err != nil {
-				errorChan <- fmt.Errorf("Tunnel %s -> %s failed: %v", t.LocalPort, t.RemoteAddr, err)
+				errorChan <- fmt.Errorf("tunnel %s -> %s failed: %v", t.LocalPort, t.RemoteAddr, err)
 			}
 		}(tunnel)
 	}
@@ -104,21 +92,6 @@ func runTunnels(cmd *cobra.Command, args []string) {
 	console.Info("Shutting down tunnels...")
 	cancel()
 	time.Sleep(1 * time.Second)
-}
-
-func selectServer(cfg *config.Config, serverName string) (config.Server, error) {
-	if serverName != "" {
-		for _, srv := range cfg.Servers {
-			if srv.Host == serverName || srv.User == serverName {
-				return srv, nil
-			}
-		}
-		return config.Server{}, fmt.Errorf("server not found in configuration: %s", serverName)
-	} else if len(cfg.Servers) == 1 {
-		return cfg.Servers[0], nil
-	} else {
-		return config.Server{}, fmt.Errorf("multiple servers defined. Please specify a server using the --server flag")
-	}
 }
 
 type TunnelConfig struct {

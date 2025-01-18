@@ -82,7 +82,7 @@ ftl build --skip-push
 
 ### 3. Deploying Your Application
 
-Deploy your application to the configured servers:
+Deploy your application to the configured server:
 
 ```bash
 ftl deploy
@@ -90,7 +90,7 @@ ftl deploy
 
 The deployment process:
 
-1. Connects to your server(s) via SSH
+1. Connects to your server via SSH
 2. Transfers images directly or pulls from registry (depending on configuration)
 3. Sets up volumes and networks
 4. Starts dependencies (if any)
@@ -154,10 +154,10 @@ Here's a complete example of deploying a simple web application:
      domain: myapp.example.com
      email: admin@example.com
 
-   servers:
-     - host: myapp.example.com
-       user: deploy
-       ssh_key: ~/.ssh/id_rsa
+   server:
+     host: myapp.example.com
+     user: deploy
+     ssh_key: ~/.ssh/id_rsa
 
    services:
      - name: web

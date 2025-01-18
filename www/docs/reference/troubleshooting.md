@@ -33,9 +33,9 @@ Error: failed to transfer image layers
 
 **Solution**:
 
-- Check SSH connectivity to your server
+- Check SSH connectivity
 - Verify SSH key permissions (should be 600)
-- Ensure sufficient disk space on both local and remote machines
+- Ensure sufficient disk space on both local and server machines
 
 ## Deployment Issues
 
@@ -65,7 +65,7 @@ Error: failed to obtain SSL certificate
 **Solution**:
 
 - Verify DNS records are properly configured
-- Ensure the domain points to your server's IP
+- Ensure the domain points to the server IP
 - Check that port 80 is accessible (required for ACME challenges)
 - Verify the email address in your project configuration
 
@@ -81,10 +81,9 @@ Error: ssh: connect to host example.com port 22: Connection refused
 
 **Solution**:
 
-- Verify server SSH configuration
-- Check firewall rules
-- Ensure correct SSH key path in `ftl.yaml`
-- Verify server hostname/IP and port
+- Verify SSH configuration
+- Verify hostname/IP and port
+- Check SSH key permissions
 
 ### Reverse Proxy Issues
 
@@ -167,7 +166,7 @@ Warning: using default value for POSTGRES_USER
 # Check service logs
 ftl logs <service>
 
-# Verify server connectivity
+# Verify connectivity
 ftl setup
 
 # Rebuild and redeploy service

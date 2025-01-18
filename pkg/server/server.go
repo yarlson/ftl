@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	gossh "golang.org/x/crypto/ssh"
 
@@ -22,35 +21,14 @@ type DockerCredentials struct {
 	Password string
 }
 
-// SetupServers performs the setup on all servers concurrently.
-func SetupServers(ctx context.Context, cfg *config.Config, dockerCreds DockerCredentials, newUserPassword string, sm *console.SpinnerManager) error {
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(cfg.Servers))
-
-	for _, server := range cfg.Servers {
-		wg.Add(1)
-		go func(server config.Server) {
-			defer wg.Done()
-
-			if err := setupServer(ctx, server, dockerCreds, newUserPassword, sm); err != nil {
-				errChan <- fmt.Errorf("[%s] Setup failed: %w", server.Host, err)
-				return
-			}
-		}(server)
+// Setup performs the server setup
+func Setup(ctx context.Context, cfg *config.Config, dockerCreds DockerCredentials, newUserPassword string, sm *console.SpinnerManager) error {
+	spinner := sm.AddSpinner("setup", fmt.Sprintf("[%s] Setting up server", cfg.Server.Host))
+	if err := setupServer(ctx, cfg.Server, dockerCreds, newUserPassword, sm); err != nil {
+		spinner.ErrorWithMessagef("Setup failed: %v", err)
+		return fmt.Errorf("[%s] Setup failed: %w", cfg.Server.Host, err)
 	}
-
-	wg.Wait()
-	close(errChan)
-
-	var errs []error
-	for err := range errChan {
-		errs = append(errs, err)
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred during server setup: %v", errs)
-	}
-
+	spinner.Complete()
 	return nil
 }
 

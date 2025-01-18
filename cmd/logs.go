@@ -19,8 +19,8 @@ var (
 // logsCmd represents the logs command
 var logsCmd = &cobra.Command{
 	Use:   "logs [service]",
-	Short: "Fetch logs from remote deployments",
-	Long: `Fetch logs from the specified service running on remote servers.
+	Short: "Fetch logs from remote deployment",
+	Long: `Fetch logs from the specified service running on remote server.
 If no service is specified, logs from all services will be fetched.
 Use the -f flag to stream logs in real-time.`,
 	Args: cobra.MaximumNArgs(1),
@@ -49,43 +49,36 @@ func runLogs(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if err := getLogsFromServers(cfg, serviceName, follow, tail); err != nil {
+	if err := getLogs(cfg, serviceName, follow, tail); err != nil {
 		console.Error("Failed to fetch logs:", err)
 		return
 	}
 }
 
-func getLogsFromServers(cfg *config.Config, serviceName string, follow bool, tail int) error {
+func getLogs(cfg *config.Config, serviceName string, follow bool, tail int) error {
 	services := []string{}
 
 	if serviceName != "" {
 		services = append(services, serviceName)
 	} else {
-		// Collect all service names from the config
 		for _, service := range cfg.Services {
 			services = append(services, service.Name)
 		}
 	}
 
-	for _, server := range cfg.Servers {
-		console.Info(fmt.Sprintf("Fetching logs from server %s...", server.Host))
+	console.Info(fmt.Sprintf("Fetching logs from server %s...", cfg.Server.Host))
 
-		runner, err := connectToServer(server)
-		if err != nil {
-			console.Error(fmt.Sprintf("Failed to connect to server %s: %v", server.Host, err))
-			continue
-		}
-		defer runner.Close()
+	runner, err := connectToServer(cfg.Server)
+	if err != nil {
+		return fmt.Errorf("failed to connect to server %s: %v", cfg.Server.Host, err)
+	}
+	defer runner.Close()
 
-		logger := logs.NewLogger(runner)
+	logger := logs.NewLogger(runner)
+	ctx := context.Background()
 
-		ctx := context.Background()
-		err = logger.FetchLogs(ctx, cfg.Project.Name, services, follow, tail)
-
-		if err != nil {
-			console.Error(fmt.Sprintf("Failed to fetch logs from server %s: %v", server.Host, err))
-			continue
-		}
+	if err := logger.FetchLogs(ctx, cfg.Project.Name, services, follow, tail); err != nil {
+		return fmt.Errorf("failed to fetch logs from server %s: %v", cfg.Server.Host, err)
 	}
 
 	return nil

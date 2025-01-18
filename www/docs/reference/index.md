@@ -26,13 +26,11 @@ FTL supports two distinct approaches for managing Docker images:
    - Builds images locally
    - Implements custom layer caching
    - Transfers only modified layers via SSH
-   - Optimized for single-server deployments
 
 2. **Registry-based Deployment**
    - Activated when `image` field is specified
    - Requires registry authentication (username/password only)
    - Follows standard Docker registry workflow
-   - Suitable for multi-server deployments
 
 ### Deployment Process
 

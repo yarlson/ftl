@@ -130,14 +130,13 @@ Benefits:
    - Use direct SSH transfer for simpler setups
    - Use registry-based deployment when:
      - You need image versioning
-     - Multiple servers need the same image
      - You require image scanning/signing
 
 2. **Registry Configuration**
 
    - Use username/password authentication
    - Avoid token-based registries (currently unsupported)
-   - Consider registry proximity to your servers
+   - Consider registry proximity to your server
 
 3. **Optimize Dockerfiles**
 
