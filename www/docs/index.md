@@ -80,7 +80,7 @@ Deploy your web applications to production servers without complexity. FTL handl
 
 <div class="feature-list">
 
-🚀 Deploy with a single command 
+🚀 Deploy with a single command
 
 🔒 Automatic server security setup
 
@@ -125,20 +125,20 @@ Deploy your web applications to production servers without complexity. FTL handl
 ```yaml
 # Simple configuration - just fill in your details
 project:
-  name: my-website        # Your project name
-  domain: mysite.com      # Your domain name
-  email: me@mysite.com    # Your email for SSL
+  name: my-website # Your project name
+  domain: mysite.com # Your domain name
+  email: me@mysite.com # Your email for SSL
 
 # Your server details from your hosting provider
-servers:
-  - host: 64.23.132.12   # Your server IP
-    user: deploy         
-    ssh_key: ~/.ssh/id_rsa
+server:
+  host: 64.23.132.12 # Your server IP
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
 
 # Your application
 services:
   - name: website
-    port: 3000           # Your app's port
+    port: 3000 # Your app's port
 
 # Need a database? Just add it here
 dependencies:
@@ -176,6 +176,5 @@ That's it. FTL handles everything else - server setup, security, SSL, databases,
 
 ### When to Consider Alternatives
 
-- Applications needing multiple servers in different regions
 - Large enterprise applications
 - Microservice architectures with many components

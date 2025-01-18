@@ -29,7 +29,7 @@ Understand the deployment process and options:
 
 ### [Server Setup](./server-setup.md)
 
-Configure your servers for FTL deployments:
+Configure your server for FTL deployments:
 
 - System requirements
 - Docker installation

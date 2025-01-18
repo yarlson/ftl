@@ -11,7 +11,7 @@ FTL uses a YAML configuration file (`ftl.yaml`) to define project settings, serv
 
 ```yaml
 project: # Project-level configuration
-servers: # Server definitions
+server: # Server definition
 services: # Application services
 dependencies: # Supporting services
 volumes: # Persistent storage definitions
@@ -36,14 +36,14 @@ project:
 
 ## Server Configuration
 
-Defines the target servers for deployment.
+Defines the target server for deployment.
 
 ```yaml
-servers:
-  - host: my-project.example.com # Required: Server hostname or IP
-    port: 22 # Optional: SSH port (default: 22)
-    user: my-project # Required: SSH user
-    ssh_key: ~/.ssh/id_rsa # Required: Path to SSH private key
+server:
+  host: my-project.example.com # Required: Server hostname or IP
+  port: 22 # Optional: SSH port (default: 22)
+  user: my-project # Required: SSH user
+  ssh_key: ~/.ssh/id_rsa # Required: Path to SSH private key
 ```
 
 | Field     | Type    | Required | Default | Description                     |
@@ -141,11 +141,11 @@ project:
   domain: my-project.example.com
   email: my-project@example.com
 
-servers:
-  - host: my-project.example.com
-    port: 22
-    user: my-project
-    ssh_key: ~/.ssh/id_rsa
+server:
+  host: my-project.example.com
+  port: 22
+  user: my-project
+  ssh_key: ~/.ssh/id_rsa
 
 services:
   - name: my-app

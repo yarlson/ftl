@@ -1,11 +1,11 @@
 ---
 title: Server Setup
-description: Learn how to prepare servers for FTL deployments
+description: Learn how to prepare your server for FTL deployment
 ---
 
 # Server Setup
 
-Before deploying applications with FTL, your servers need to be properly configured. This guide covers the server setup process and requirements.
+Before deploying applications with FTL, your server needs to be properly configured. This guide covers the server setup process and requirements.
 
 ## Overview
 
@@ -35,16 +35,7 @@ Execute the setup command:
 ftl setup
 ```
 
-This command will connect to all servers defined in your `ftl.yaml` configuration and perform the necessary setup steps.
-
-::: tip
-To set up a specific server when multiple are configured:
-
-```bash
-ftl setup --server myapp.example.com
-```
-
-:::
+This command will connect to the server defined in your `ftl.yaml` configuration and perform the necessary setup steps.
 
 ## Setup Process
 

@@ -18,8 +18,8 @@ import (
 
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
-	Short: "Deploy your application to configured servers",
-	Long: `Deploy your application to all servers defined in ftl.yaml.
+	Short: "Deploy your application to configured server",
+	Long: `Deploy your application to the server defined in ftl.yaml.
 This command handles the entire deployment process, ensuring
 zero-downtime updates of your services.`,
 	Run: runDeploy,
@@ -39,14 +39,13 @@ func runDeploy(cmd *cobra.Command, args []string) {
 	sm := console.NewSpinnerManager()
 	sm.Start()
 
-	if err := deployToServers(cfg, sm); err != nil {
+	if err := deployToServer(cfg.Project.Name, cfg, cfg.Server, sm); err != nil {
 		sm.Stop()
-		console.Error("Deployment failed")
+		console.Error("Deployment failed:", err)
 		return
 	}
 
 	sm.Stop()
-
 	console.Success("Deployment completed successfully")
 }
 
@@ -62,16 +61,6 @@ func parseConfig(filename string) (*config.Config, error) {
 	}
 
 	return cfg, nil
-}
-
-func deployToServers(cfg *config.Config, sm *console.SpinnerManager) error {
-	for _, server := range cfg.Servers {
-		if err := deployToServer(cfg.Project.Name, cfg, server, sm); err != nil {
-			return fmt.Errorf("failed to deploy to server %s: %w", server.Host, err)
-		}
-	}
-
-	return nil
 }
 
 func deployToServer(project string, cfg *config.Config, server config.Server, sm *console.SpinnerManager) error {

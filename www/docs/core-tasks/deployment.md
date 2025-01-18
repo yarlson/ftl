@@ -21,13 +21,14 @@ The deployment process follows these steps:
 
 1. **SSH Connection**
 
-   - Connects to your configured server(s) via SSH
+   - Connects to your configured server via SSH
    - Verifies server access and permissions
 
 2. **Image Handling**
 
    - For direct SSH transfer (no `image` field):
-     - Transfers Docker images directly to servers
+     - Verifies server access and permissions
+     - Transfers Docker images directly to server
      - Uses FTL's layer caching for optimization
    - For registry-based deployment (`image` field specified):
      - Pulls images from configured registry
@@ -59,6 +60,16 @@ The deployment process follows these steps:
 ### Basic Service Configuration
 
 ```yaml
+project:
+  name: my-project
+  domain: example.com
+  email: admin@example.com
+
+server:
+  host: example.com
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
+
 services:
   - name: web
     port: 80

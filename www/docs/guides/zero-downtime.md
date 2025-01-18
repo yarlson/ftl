@@ -54,6 +54,16 @@ The health check configuration parameters:
 Proper route configuration ensures traffic is handled correctly during deployments:
 
 ```yaml
+project:
+  name: my-project
+  domain: example.com
+  email: admin@example.com
+
+server:
+  host: example.com
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
+
 services:
   - name: my-app
     image: my-app:latest

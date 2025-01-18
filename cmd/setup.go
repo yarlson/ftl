@@ -15,8 +15,8 @@ import (
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Prepare servers for deployment",
-	Long: `Setup configures servers defined in ftl.yaml for deployment.
+	Short: "Prepare server for deployment",
+	Long: `Setup configures server defined in ftl.yaml for deployment.
 Run this once for each new server before deploying your application.`,
 	Run: runSetup,
 }
@@ -66,7 +66,11 @@ func runSetup(cmd *cobra.Command, args []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	if err := server.SetupServers(ctx, cfg, dockerCreds, newUserPassword, sm); err != nil {
+	if err := server.Setup(ctx, cfg, server.DockerCredentials{
+		Username: dockerCreds.Username,
+		Password: dockerCreds.Password,
+	}, newUserPassword, sm); err != nil {
+		sm.Stop()
 		console.Error("Setup failed:", err)
 		return
 	}

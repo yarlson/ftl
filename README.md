@@ -1,6 +1,6 @@
 # FTL (Faster Than Light) Deployment
 
-FTL is a lightweight deployment tool designed to simplify cloud deployments without the complexity of traditional CI/CD pipelines or container orchestration platforms. It provides automated, zero-downtime deployments to various cloud providers through a single YAML configuration file.
+FTL is a lightweight deployment tool designed to simplify cloud deployments without the complexity of traditional CI/CD pipelines or container orchestration platforms. It provides automated, zero-downtime deployments through a single YAML configuration file.
 
 For comprehensive documentation, visit [https://ftl-deploy.org](https://ftl-deploy.org)
 
@@ -62,14 +62,14 @@ project:
   domain: my-project.example.com
   email: my-project@example.com
 
-servers:
-  - host: my-project.example.com
-    port: 22
-    user: my-project
-    ssh_key: ~/.ssh/id_rsa
+server:
+  host: my-project.example.com
+  port: 22
+  user: my-project
+  ssh_key: ~/.ssh/id_rsa
 
 services:
-  - name: my-app
+  - name: web
     image: my-app:latest
     port: 80
     health_check:
@@ -160,9 +160,6 @@ ftl logs my-app -n 150
 ```bash
 # Create tunnels for all dependencies
 ftl tunnels
-
-# Connect to specific server
-ftl tunnels --server my-project.example.com
 ```
 
 ## Development

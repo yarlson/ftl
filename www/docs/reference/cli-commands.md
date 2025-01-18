@@ -11,7 +11,7 @@ This page documents all available FTL CLI commands, their flags, and usage patte
 
 - [`ftl setup`](#setup) - Initialize server with required dependencies
 - [`ftl build`](#build) - Build and prepare application images
-- [`ftl deploy`](#deploy) - Deploy application to configured servers
+- [`ftl deploy`](#deploy) - Deploy application to configured server
 - [`ftl logs`](#logs) - Retrieve and stream logs from services
 - [`ftl tunnels`](#tunnels) - Create SSH tunnels to remote dependencies
 
@@ -81,7 +81,7 @@ ftl build --skip-push
 
 ## Deploy
 
-Deploys the application to configured servers.
+Deploys the application to configured server.
 
 ```bash
 ftl deploy
@@ -91,7 +91,7 @@ ftl deploy
 
 The deploy command performs these operations:
 
-- Connects to configured servers via SSH
+- Connects to configured server via SSH
 - Pulls/transfers required Docker images
 - Performs zero-downtime container replacement
 - Configures Nginx reverse proxy
@@ -147,14 +147,8 @@ ftl logs my-app -n 150
 Creates SSH tunnels to remote dependencies.
 
 ```bash
-ftl tunnels [flags]
+ftl tunnels
 ```
-
-### Flags
-
-| Flag                      | Description                                                  |
-| ------------------------- | ------------------------------------------------------------ |
-| `-s`, `--server <server>` | (Optional) Specify server name/index for multi-server setups |
 
 ### Description
 
@@ -163,16 +157,12 @@ The tunnels command:
 - Establishes SSH tunnels to dependency services
 - Enables local access to remote services
 - Maintains concurrent tunnel connections
-- Supports multiple server configurations
 
 ### Examples
 
 ```bash
 # Establish tunnels to all dependency ports
 ftl tunnels
-
-# Connect to specific server
-ftl tunnels --server my-project.example.com
 ```
 
 ## Environment Variables

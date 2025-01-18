@@ -18,26 +18,23 @@
         }
       }
     },
-    "servers": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["host", "port", "user", "ssh_key"],
-        "properties": {
-          "host": {
-            "type": "string",
-            "format": "hostname-or-ip"
-          },
-          "port": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 65535
-          },
-          "user": { "type": "string" },
-          "ssh_key": {
-            "type": "string",
-            "format": "file-path"
-          }
+    "server": {
+      "type": "object",
+      "required": ["host", "port", "user", "ssh_key"],
+      "properties": {
+        "host": {
+          "type": "string",
+          "format": "hostname-or-ip"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "user": { "type": "string" },
+        "ssh_key": {
+          "type": "string",
+          "format": "file-path"
         }
       }
     },

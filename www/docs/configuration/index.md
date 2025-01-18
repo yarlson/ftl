@@ -12,7 +12,7 @@ FTL uses a single YAML configuration file (`ftl.yaml`) to define your entire dep
 The `ftl.yaml` file is organized into these main sections:
 
 - **Project**: Basic project information like name, domain, and contact details
-- **Servers**: Target server specifications and SSH connection details
+- **Server**: Target server specifications and SSH connection details
 - **Services**: Your application services that will be deployed
 - **Dependencies**: Supporting services like databases and caches
 - **Volumes**: Persistent storage definitions
@@ -25,11 +25,11 @@ project:
   domain: my-project.example.com
   email: admin@example.com
 
-servers:
-  - host: my-project.example.com
-    port: 22
-    user: deploy
-    ssh_key: ~/.ssh/id_rsa
+server:
+  host: my-project.example.com
+  port: 22
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
 
 services:
   - name: web

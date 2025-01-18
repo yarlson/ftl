@@ -19,7 +19,7 @@ import (
 
 type Config struct {
 	Project      Project      `yaml:"project" validate:"required"`
-	Servers      []Server     `yaml:"servers" validate:"required,dive"`
+	Server       Server       `yaml:"server" validate:"required"`
 	Services     []Service    `yaml:"services" validate:"required,dive"`
 	Dependencies []Dependency `yaml:"dependencies" validate:"dive"`
 	Volumes      []string     `yaml:"volumes" validate:"dive"`
