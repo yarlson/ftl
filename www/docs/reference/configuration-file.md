@@ -226,6 +226,5 @@ volumes:
 
 For additional details, refer to:
 
-- [Configuration File Guide](/guides/configuration)
 - [Environment Variables Reference](/reference/environment)
 - [CLI Commands Reference](/reference/cli-commands)
