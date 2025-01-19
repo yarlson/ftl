@@ -257,3 +257,87 @@ services:
 	assert.Error(suite.T(), err)
 	assert.Nil(suite.T(), config)
 }
+
+func (suite *ConfigTestSuite) TestParseConfig_StringDependency() {
+	yamlData := []byte(`
+project:
+  name: "string-dep-project"
+  domain: "example.com"
+  email: "test@example.com"
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
+services:
+  - name: "web"
+    image: "nginx:latest"
+    port: 80
+    routes:
+      - path: "/"
+dependencies:
+  - "postgres:16"
+  - "redis"
+`)
+
+	config, err := ParseConfig(yamlData)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config)
+
+	// We expect 2 dependencies
+	assert.Len(suite.T(), config.Dependencies, 2)
+
+	// Dependency #1: "postgres:16"
+	assert.Equal(suite.T(), "postgres", config.Dependencies[0].Name)
+	assert.Equal(suite.T(), "postgres:16", config.Dependencies[0].Image)
+
+	// Dependency #2: "redis"
+	// No colon, so we fall back to same name and image
+	assert.Equal(suite.T(), "redis", config.Dependencies[1].Name)
+	assert.Equal(suite.T(), "redis", config.Dependencies[1].Image)
+}
+
+func (suite *ConfigTestSuite) TestParseConfig_MixedDependencies() {
+	yamlData := []byte(`
+project:
+  name: "mixed-deps-project"
+  domain: "example.com"
+  email: "test@example.com"
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
+services:
+  - name: "web"
+    image: "nginx:latest"
+    port: 80
+    routes:
+      - path: "/"
+dependencies:
+  - "mysql:8"
+  - name: "redis"
+    image: "redis:6"
+  - "elasticsearch"
+`)
+
+	config, err := ParseConfig(yamlData)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config)
+
+	// We expect 3 dependencies
+	assert.Len(suite.T(), config.Dependencies, 3)
+
+	// Dependency #1: "mysql:8"
+	assert.Equal(suite.T(), "mysql", config.Dependencies[0].Name)
+	assert.Equal(suite.T(), "mysql:8", config.Dependencies[0].Image)
+
+	// Dependency #2: normal map-based dependency
+	assert.Equal(suite.T(), "redis", config.Dependencies[1].Name)
+	assert.Equal(suite.T(), "redis:6", config.Dependencies[1].Image)
+
+	// Dependency #3: "elasticsearch" (no colon)
+	// We expect same name / image
+	assert.Equal(suite.T(), "elasticsearch", config.Dependencies[2].Name)
+	assert.Equal(suite.T(), "elasticsearch", config.Dependencies[2].Image)
+}

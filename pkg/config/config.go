@@ -100,6 +100,42 @@ type Dependency struct {
 	Container *Container `yaml:"container"`
 }
 
+// UnmarshalYAML is a custom unmarshaler that lets you handle both string and map forms.
+func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Tag {
+	case "!!str":
+		// If the node is just a string (e.g. "postgres:16"), parse it.
+		// You can define your own logic here: how to set Name vs. Image, etc.
+		// For instance, if you want Name = the first part, and Image = the entire string:
+		value := node.Value
+		parts := strings.SplitN(value, ":", 2)
+		if len(parts) > 1 {
+			d.Name = parts[0]
+			d.Image = value // e.g. "postgres:16"
+		} else {
+			// If there's no colon, define your fallback:
+			// e.g. "postgres" => use "postgres" for both Name and Image
+			d.Name = value
+			d.Image = value
+		}
+		return nil
+
+	case "!!map":
+		// If the node is a map, just decode into the struct in the usual way.
+		type dependencyAlias Dependency
+		var tmp dependencyAlias
+		if err := node.Decode(&tmp); err != nil {
+			return fmt.Errorf("failed to decode dependency map: %w", err)
+		}
+		*d = Dependency(tmp)
+		return nil
+
+	default:
+		// If there's some other type, return an error or handle as needed
+		return fmt.Errorf("unsupported YAML type for Dependency: %s", node.Tag)
+	}
+}
+
 type Volume struct {
 	Name string `yaml:"name" validate:"required"`
 	Path string `yaml:"path" validate:"required,unix_path"`
