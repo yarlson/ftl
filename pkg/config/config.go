@@ -117,10 +117,11 @@ func getDefaultConfig(baseName, version string) (*Dependency, bool) {
 	return &dep, true
 }
 
-// UnmarshalYAML is a custom unmarshaler that lets you handle both string-based
-// and map-based dependencies.
+// UnmarshalYAML is a custom unmarshaler that handles both string-based
+// dependencies (like "mysql:8") and map-based dependencies, plus expands env vars.
 func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 	switch node.Tag {
+
 	case "!!str":
 		// If the node is just a string (e.g. "postgres:16"), parse it.
 		value := node.Value
@@ -130,6 +131,17 @@ func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 			// We have a base name + version
 			base, version := parts[0], parts[1]
 			if defaultDep, ok := getDefaultConfig(base, version); ok {
+				// Expand env placeholders in the default config
+				for i, envLine := range defaultDep.Env {
+					expanded, err := expandWithEnvAndDefault(envLine)
+					if err != nil {
+						return fmt.Errorf(
+							"failed expanding env in default config for %q: %w",
+							base, err,
+						)
+					}
+					defaultDep.Env[i] = expanded
+				}
 				*d = *defaultDep
 			} else {
 				// fallback for unknown base (e.g., "foobar:1.0")
@@ -140,9 +152,20 @@ func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 			// Only a base name (e.g., "redis")
 			base := parts[0]
 			if defaultDep, ok := getDefaultConfig(base, "latest"); ok {
+				// Expand env placeholders
+				for i, envLine := range defaultDep.Env {
+					expanded, err := expandWithEnvAndDefault(envLine)
+					if err != nil {
+						return fmt.Errorf(
+							"failed expanding env in default config for %q: %w",
+							base, err,
+						)
+					}
+					defaultDep.Env[i] = expanded
+				}
 				*d = *defaultDep
 			} else {
-				// fallback for unknown base (e.g., "foobar")
+				// fallback for unknown base
 				d.Name = base
 				d.Image = base
 			}
@@ -155,6 +178,17 @@ func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 		var tmp dependencyAlias
 		if err := node.Decode(&tmp); err != nil {
 			return fmt.Errorf("failed to decode dependency map: %w", err)
+		}
+		// Expand placeholders in tmp.Env
+		for i, envLine := range tmp.Env {
+			expanded, err := expandWithEnvAndDefault(envLine)
+			if err != nil {
+				return fmt.Errorf(
+					"failed to expand env for dependency %q: %w",
+					tmp.Name, err,
+				)
+			}
+			tmp.Env[i] = expanded
 		}
 		*d = Dependency(tmp)
 		return nil
@@ -175,26 +209,68 @@ type Hooks struct {
 	Post string `yaml:"post"`
 }
 
+// expandWithEnvAndDefault expands environment variables within a single string.
+// It handles `${VAR:-default}` and `${VAR:?error message}` syntax. If a required
+// variable is missing, it returns an error. Otherwise, it returns the expanded
+// string and a nil error.
+func expandWithEnvAndDefault(input string) (string, error) {
+	var expansionErr error
+
+	expanded := os.Expand(input, func(key string) string {
+		val, err := expandOneVar(key)
+		if err != nil && expansionErr == nil {
+			// capture the first error
+			expansionErr = err
+		}
+		return val
+	})
+
+	// if expansionErr != nil, expanded might be partially filled, but we return the error
+	return expanded, expansionErr
+}
+
+// expandOneVar handles a single ${...} expression inside os.Expand.
+func expandOneVar(key string) (string, error) {
+	// Check for ":-" = default fallback
+	if strings.Contains(key, ":-") {
+		parts := strings.SplitN(key, ":-", 2)
+		envKey := parts[0]
+		defaultVal := parts[1]
+		if val, ok := os.LookupEnv(envKey); ok {
+			return val, nil
+		}
+		return defaultVal, nil
+	}
+
+	// Check for ":?" = required variable
+	if strings.Contains(key, ":?") {
+		parts := strings.SplitN(key, ":?", 2)
+		envKey := parts[0]
+		errMsg := parts[1]
+		if val, ok := os.LookupEnv(envKey); ok {
+			return val, nil
+		}
+		// variable not set => return an error
+		return "", fmt.Errorf("required environment variable %s not set: %s", envKey, errMsg)
+	}
+
+	// Otherwise, it's just ${VAR} with no colon
+	if val, ok := os.LookupEnv(key); ok {
+		return val, nil
+	}
+	// Not found in environment => return empty string
+	return "", nil
+}
+
 func ParseConfig(data []byte) (*Config, error) {
 	// Load any .env file from the current directory
 	_ = godotenv.Load()
 
 	// Process environment variables with default values
-	expandedData := os.Expand(string(data), func(key string) string {
-		// Check if there's a default value specified
-		parts := strings.SplitN(key, ":-", 2)
-		envKey := parts[0]
-
-		if value, exists := os.LookupEnv(envKey); exists {
-			return value
-		}
-
-		// Return default value if specified, empty string otherwise
-		if len(parts) > 1 {
-			return parts[1]
-		}
-		return ""
-	})
+	expandedData, err := expandWithEnvAndDefault(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("error expanding environment variables: %v", err)
+	}
 
 	var config Config
 	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {

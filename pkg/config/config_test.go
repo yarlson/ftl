@@ -408,6 +408,8 @@ server:
 services:
   - name: "web"
     image: "nginx:latest"
+    routes:
+      - path: "/"
     port: 80
     volumes:
       - "/absolute/path:/container/path"
@@ -457,4 +459,121 @@ dependencies:
 
 	expected := []string{"redis_data"}
 	assert.Equal(suite.T(), expected, config.Volumes)
+}
+
+func (suite *ConfigTestSuite) TestParseConfig_EnvExpansionInDefaults_Success() {
+	// We'll set an env var that overrides the default "production-secret" for MySQL.
+	// Then after the test, we'll unset it to avoid side effects in other tests.
+	os.Setenv("MYSQL_ROOT_PASSWORD", "super-secret-password")
+	defer os.Unsetenv("MYSQL_ROOT_PASSWORD")
+
+	yamlData := []byte(`
+project:
+  name: "env-default-test"
+  domain: "example.com"
+  email: "test@example.com"
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
+services:
+  - name: "web"
+    image: "nginx:latest"
+    routes:
+      - path: "/"
+    port: 80
+dependencies:
+  - "mysql:5.7"
+`)
+
+	config, err := ParseConfig(yamlData)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config)
+	assert.Len(suite.T(), config.Dependencies, 1)
+
+	dep := config.Dependencies[0]
+	// The name should come from the default config or be "mysql"
+	assert.Equal(suite.T(), "mysql", dep.Name)
+	// The image should reflect version override => "mysql:5.7"
+	assert.Equal(suite.T(), "mysql:5.7", dep.Image)
+
+	// Check env expansions
+	// Our default config had "MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-production-secret}"
+	// We set that env var => we expect "MYSQL_ROOT_PASSWORD=super-secret-password"
+	require := assert.New(suite.T())
+	require.Len(dep.Env, 1)
+	require.Equal("MYSQL_ROOT_PASSWORD=super-secret-password", dep.Env[0])
+}
+
+func (suite *ConfigTestSuite) TestParseConfig_EnvExpansionInServices_Success() {
+	// We'll set an env var that overrides a default in the service env.
+	os.Setenv("MY_SERVICE_VAR", "overridden-value")
+	defer os.Unsetenv("MY_SERVICE_VAR")
+
+	yamlData := []byte(`
+project:
+  name: "service-env-test"
+  domain: "example.com"
+  email: "test@example.com"
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
+
+services:
+  - name: "my-service"
+    image: "my-service:latest"
+    routes:
+      - path: "/"
+    port: 8080
+    env:
+      - "MY_VAR=${MY_SERVICE_VAR:-default-value}"
+dependencies: []
+`)
+
+	config, err := ParseConfig(yamlData)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config)
+	assert.Len(suite.T(), config.Services, 1)
+
+	svc := config.Services[0]
+	require := assert.New(suite.T())
+	require.Len(svc.Env, 1)
+	// Should reflect the env var we set
+	require.Equal("MY_VAR=overridden-value", svc.Env[0])
+}
+
+func (suite *ConfigTestSuite) TestParseConfig_EnvExpansion_RequiredVarMissing() {
+	// We do NOT set the environment variable MY_REQUIRED_VAR, so we expect an error.
+	yamlData := []byte(`
+project:
+  name: "required-var-test"
+  domain: "example.com"
+  email: "test@example.com"
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
+
+services:
+  - name: "my-service"
+    image: "my-service:latest"
+    routes:
+      - path: "/"
+    port: 8080
+    env:
+      - "MUST_BE_SET=${MY_REQUIRED_VAR:?must be set!}"
+dependencies: []
+`)
+
+	config, err := ParseConfig(yamlData)
+
+	assert.Error(suite.T(), err)
+	assert.Nil(suite.T(), config)
+	// The error message should say "required environment variable MY_REQUIRED_VAR not set"
+	assert.Contains(suite.T(), err.Error(), "required environment variable MY_REQUIRED_VAR not set")
+	assert.Contains(suite.T(), err.Error(), "must be set!")
 }

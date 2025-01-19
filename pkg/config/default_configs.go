@@ -9,7 +9,7 @@ var defaultConfigs = map[string]Dependency{
 		Ports:   []int{3306},
 		Volumes: []string{"mysql_data:/var/lib/mysql"},
 		Env: []string{
-			"MYSQL_ROOT_PASSWORD=production-secret",
+			"MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}",
 		},
 	},
 	"postgres": {
@@ -18,7 +18,7 @@ var defaultConfigs = map[string]Dependency{
 		Ports:   []int{5432},
 		Volumes: []string{"postgres_data:/var/lib/postgresql/data"},
 		Env: []string{
-			"POSTGRES_PASSWORD=production-secret",
+			"POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
 		},
 	},
 	"postgresql": {
@@ -27,7 +27,7 @@ var defaultConfigs = map[string]Dependency{
 		Ports:   []int{5432},
 		Volumes: []string{"postgres_data:/var/lib/postgresql/data"},
 		Env: []string{
-			"POSTGRES_PASSWORD=production-secret",
+			"POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
 		},
 	},
 	"elasticsearch": {
@@ -54,8 +54,8 @@ var defaultConfigs = map[string]Dependency{
 		Ports:   []int{27017},
 		Volumes: []string{"mongo_data:/data/db"},
 		Env: []string{
-			"MONGO_INITDB_ROOT_USERNAME=root",
-			"MONGO_INITDB_ROOT_PASSWORD=production-secret",
+			"MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:mongouser}",
+			"MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}",
 		},
 	},
 	"redis": {
@@ -70,9 +70,10 @@ var defaultConfigs = map[string]Dependency{
 		Ports: []int{11211},
 	},
 	"rabbitmq": {
-		Name:  "rabbitmq",
-		Image: "rabbitmq:latest",
-		Ports: []int{5672, 15672}, // main + management
+		Name:    "rabbitmq",
+		Image:   "rabbitmq:latest",
+		Ports:   []int{5672, 15672}, // main + management
+		Volumes: []string{"rabbitmq_data:/var/lib/rabbitmq"},
 		Container: &Container{
 			ULimits: []ULimit{
 				{
