@@ -64,35 +64,29 @@ project:
 
 server:
   host: my-project.example.com
-  port: 22
   user: my-project
   ssh_key: ~/.ssh/id_rsa
 
 services:
   - name: web
-    image: my-app:latest
+    path: ./src
     port: 80
     health_check:
       path: /
-      interval: 10s
-      timeout: 5s
-      retries: 3
     routes:
       - path: /
-        strip_prefix: false
 
 dependencies:
-  - name: postgres
-    image: postgres:16
+  - "postgres:16" # Using short notation
+  - name: redis # Using detailed definition
+    image: redis:7
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - redis_data:/custom/redis/path
     env:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-app}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-secret}
 
 volumes:
-  - postgres_data
+  - redis_data
 ```
 
 ### Environment Variables
@@ -117,9 +111,7 @@ FTL supports two deployment modes:
 ```yaml
 services:
   - name: web
-    build:
-      context: .
-      dockerfile: Dockerfile
+    path: ./src # Path to directory containing Dockerfile
 ```
 
 2. Registry-based Deployment:
@@ -128,9 +120,7 @@ services:
 services:
   - name: web
     image: registry.example.com/my-app:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    path: ./src
 ```
 
 Build command:
