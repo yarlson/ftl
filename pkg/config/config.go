@@ -100,28 +100,57 @@ type Dependency struct {
 	Container *Container `yaml:"container"`
 }
 
-// UnmarshalYAML is a custom unmarshaler that lets you handle both string and map forms.
+// getDefaultConfig retrieves a copy of the default config (if present),
+// then applies the provided version to the Image.
+func getDefaultConfig(baseName, version string) (*Dependency, bool) {
+	baseName = strings.ToLower(baseName)
+	dep, found := defaultConfigs[baseName]
+	if !found {
+		return nil, false
+	}
+	parts := strings.Split(dep.Image, ":")
+	if len(parts) == 2 {
+		dep.Image = parts[0] + ":" + version
+	} else {
+		dep.Image += ":" + version
+	}
+	return &dep, true
+}
+
+// UnmarshalYAML is a custom unmarshaler that lets you handle both string-based
+// and map-based dependencies.
 func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 	switch node.Tag {
 	case "!!str":
 		// If the node is just a string (e.g. "postgres:16"), parse it.
-		// You can define your own logic here: how to set Name vs. Image, etc.
-		// For instance, if you want Name = the first part, and Image = the entire string:
 		value := node.Value
 		parts := strings.SplitN(value, ":", 2)
-		if len(parts) > 1 {
-			d.Name = parts[0]
-			d.Image = value // e.g. "postgres:16"
+
+		if len(parts) == 2 {
+			// We have a base name + version
+			base, version := parts[0], parts[1]
+			if defaultDep, ok := getDefaultConfig(base, version); ok {
+				*d = *defaultDep
+			} else {
+				// fallback for unknown base (e.g., "foobar:1.0")
+				d.Name = base
+				d.Image = value
+			}
 		} else {
-			// If there's no colon, define your fallback:
-			// e.g. "postgres" => use "postgres" for both Name and Image
-			d.Name = value
-			d.Image = value
+			// Only a base name (e.g., "redis")
+			base := parts[0]
+			if defaultDep, ok := getDefaultConfig(base, "latest"); ok {
+				*d = *defaultDep
+			} else {
+				// fallback for unknown base (e.g., "foobar")
+				d.Name = base
+				d.Image = base
+			}
 		}
 		return nil
 
 	case "!!map":
-		// If the node is a map, just decode into the struct in the usual way.
+		// If the node is a map, decode into the struct in the usual way.
 		type dependencyAlias Dependency
 		var tmp dependencyAlias
 		if err := node.Decode(&tmp); err != nil {

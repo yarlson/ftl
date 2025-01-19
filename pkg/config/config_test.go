@@ -294,7 +294,7 @@ dependencies:
 	// Dependency #2: "redis"
 	// No colon, so we fall back to same name and image
 	assert.Equal(suite.T(), "redis", config.Dependencies[1].Name)
-	assert.Equal(suite.T(), "redis", config.Dependencies[1].Image)
+	assert.Equal(suite.T(), "redis:latest", config.Dependencies[1].Image)
 }
 
 func (suite *ConfigTestSuite) TestParseConfig_MixedDependencies() {
@@ -339,5 +339,5 @@ dependencies:
 	// Dependency #3: "elasticsearch" (no colon)
 	// We expect same name / image
 	assert.Equal(suite.T(), "elasticsearch", config.Dependencies[2].Name)
-	assert.Equal(suite.T(), "elasticsearch", config.Dependencies[2].Image)
+	assert.Equal(suite.T(), "elasticsearch:latest", config.Dependencies[2].Image)
 }
