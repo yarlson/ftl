@@ -48,7 +48,7 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 			"80:80",
 			"443:443",
 		},
-		HealthCheck: &config.HealthCheck{
+		HealthCheck: &config.ServiceHealthCheck{
 			Path:     "/",
 			Interval: time.Second,
 			Timeout:  time.Second,

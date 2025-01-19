@@ -163,11 +163,11 @@ project:
   name: "test-project"
   domain: "example.com"
   email: "test@example.com"
-servers:
-  - host: "example.com"
-    port: 22
-    user: "user"
-    ssh_key: "~/.ssh/id_rsa"
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
 services:
   - name: "web"
     image: "nginx:latest"
@@ -200,11 +200,11 @@ project:
   name: "test-project"
   domain: "example.com"
   email: "test@example.com"
-servers:
-  - host: "example.com"
-    port: 22
-    user: "user"
-    ssh_key: "~/.ssh/id_rsa"
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
 services:
   - name: "web"
     image: "nginx:latest"

@@ -44,25 +44,46 @@ type Service struct {
 	Name         string `yaml:"name" validate:"required"`
 	Image        string `yaml:"image"`
 	ImageUpdated bool
-	Port         int          `yaml:"port" validate:"required,min=1,max=65535"`
-	Path         string       `yaml:"path"`
-	HealthCheck  *HealthCheck `yaml:"health_check"`
-	Routes       []Route      `yaml:"routes" validate:"required,dive"`
-	Volumes      []string     `yaml:"volumes" validate:"dive,volume_reference"`
-	Command      string       `yaml:"command"`
-	Entrypoint   []string     `yaml:"entrypoint"`
-	Env          []string     `yaml:"env"`
-	Forwards     []string     `yaml:"forwards"`
-	Recreate     bool         `yaml:"recreate"`
-	LocalPorts   []int
-	Hooks        *Hooks
+	Port         int                 `yaml:"port" validate:"required,min=1,max=65535"`
+	Path         string              `yaml:"path"`
+	HealthCheck  *ServiceHealthCheck `yaml:"health_check"`
+	Routes       []Route             `yaml:"routes" validate:"required,dive"`
+	Volumes      []string            `yaml:"volumes" validate:"dive,volume_reference"`
+	Command      string              `yaml:"command"`
+	Entrypoint   []string            `yaml:"entrypoint"`
+	Env          []string            `yaml:"env"`
+	Forwards     []string            `yaml:"forwards"`
+	Recreate     bool                `yaml:"recreate"`
+	Hooks        *Hooks              `yaml:"hooks"`
+	Container    *Container          `yaml:"container"`
+	LocalPorts   []int               `yaml:"-"`
 }
 
-type HealthCheck struct {
+type ServiceHealthCheck struct {
 	Path     string        `yaml:"path"`
 	Interval time.Duration `yaml:"interval"`
 	Timeout  time.Duration `yaml:"timeout"`
 	Retries  int           `yaml:"retries"`
+}
+
+type Container struct {
+	HealthCheck *ContainerHealthCheck `yaml:"health_check"`
+	ULimits     []ULimit              `yaml:"ulimits"`
+}
+
+type ULimit struct {
+	Name string `yaml:"name"`
+	Hard int    `yaml:"hard"`
+	Soft int    `yaml:"soft"`
+}
+
+type ContainerHealthCheck struct {
+	Cmd          string `yaml:"cmd"`
+	Interval     string `yaml:"interval"`
+	Retries      int    `yaml:"retries"`
+	Timeout      string `yaml:"timeout"`
+	StartPeriod  string `yaml:"start_period"`
+	StartTimeout string `yaml:"start_timeout"`
 }
 
 type Route struct {
@@ -71,11 +92,12 @@ type Route struct {
 }
 
 type Dependency struct {
-	Name    string   `yaml:"name" validate:"required"`
-	Image   string   `yaml:"image" validate:"required"`
-	Volumes []string `yaml:"volumes" validate:"dive,volume_reference"`
-	Env     []string `yaml:"env" validate:"dive"`
-	Ports   []int    `yaml:"ports" validate:"dive,min=1,max=65535"`
+	Name      string     `yaml:"name" validate:"required"`
+	Image     string     `yaml:"image" validate:"required"`
+	Volumes   []string   `yaml:"volumes" validate:"dive,volume_reference"`
+	Env       []string   `yaml:"env" validate:"dive"`
+	Ports     []int      `yaml:"ports" validate:"dive,min=1,max=65535"`
+	Container *Container `yaml:"container"`
 }
 
 type Volume struct {

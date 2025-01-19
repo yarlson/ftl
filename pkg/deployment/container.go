@@ -96,7 +96,7 @@ func (d *Deployment) getContainerInfo(network, service string) (*containerInfo, 
 	return nil, fmt.Errorf("no container found with alias %s in network %s", service, network)
 }
 
-func (d *Deployment) performHealthChecks(container string, healthCheck *config.HealthCheck) error {
+func (d *Deployment) performHealthChecks(container string, healthCheck *config.ServiceHealthCheck) error {
 	if healthCheck == nil {
 		return nil
 	}
@@ -152,12 +152,29 @@ func (d *Deployment) createContainer(project string, service *config.Service, su
 		args = append(args, "-v", volume)
 	}
 
+	var healthCheckArgs []string
+
 	if service.HealthCheck != nil {
-		args = append(args, "--health-cmd", fmt.Sprintf("curl -sf http://localhost:%d%s || exit 1", service.Port, service.HealthCheck.Path))
-		args = append(args, "--health-interval", fmt.Sprintf("%ds", int(service.HealthCheck.Interval.Seconds())))
-		args = append(args, "--health-retries", fmt.Sprintf("%d", service.HealthCheck.Retries))
-		args = append(args, "--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())))
+		healthCheckArgs = []string{
+			"--health-cmd", fmt.Sprintf("curl -sf http://localhost:%d%s || exit 1", service.Port, service.HealthCheck.Path),
+			"--health-interval", fmt.Sprintf("%ds", int(service.HealthCheck.Interval.Seconds())),
+			"--health-retries", fmt.Sprintf("%d", service.HealthCheck.Retries),
+			"--health-timeout", fmt.Sprintf("%ds", int(service.HealthCheck.Timeout.Seconds())),
+		}
 	}
+
+	if service.Container != nil && service.Container.HealthCheck != nil {
+		healthCheckArgs = []string{
+			"--health-cmd", service.Container.HealthCheck.Cmd,
+			"--health-interval", service.Container.HealthCheck.Interval,
+			"--health-retries", fmt.Sprintf("%d", service.Container.HealthCheck.Retries),
+			"--health-timeout", service.Container.HealthCheck.Timeout,
+			"--health-start-period", service.Container.HealthCheck.StartPeriod,
+			"--health-start-timeout", service.Container.HealthCheck.StartTimeout,
+		}
+	}
+
+	args = append(args, healthCheckArgs...)
 
 	for _, port := range service.LocalPorts {
 		args = append(args, "-p", fmt.Sprintf("127.0.0.1:%d:%d", port, port))
