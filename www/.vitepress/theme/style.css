@@ -17,7 +17,9 @@
   --vp-c-brand-soft: var(--flexoki-blue-100);
 
   /* Buttons with improved contrast */
-  --vp-button-brand-bg: var(--flexoki-blue-700); /* Darkened for better contrast on white */
+  --vp-button-brand-bg: var(
+    --flexoki-blue-700
+  ); /* Darkened for better contrast on white */
   --vp-button-brand-hover-bg: var(--flexoki-blue-800);
   --vp-button-brand-active-bg: var(--flexoki-blue-900);
 
@@ -74,7 +76,7 @@
   --vp-c-bg-alt: var(--flexoki-850);
 
   /* Adjusted text colors for better contrast */
-  --vp-c-text-1: var(--flexoki-50);  /* Lightened from 100 */
+  --vp-c-text-1: var(--flexoki-50); /* Lightened from 100 */
   --vp-c-text-2: var(--flexoki-200); /* Lightened from 300 */
   --vp-c-text-3: var(--flexoki-300); /* Lightened from 400 */
 

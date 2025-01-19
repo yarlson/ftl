@@ -33,9 +33,7 @@ server:
 
 services:
   - name: web
-    build:
-      context: .
-      dockerfile: Dockerfile
+    path: ./src
     port: 3000
     routes:
       - path: /

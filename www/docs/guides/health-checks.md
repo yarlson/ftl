@@ -20,7 +20,7 @@ FTL uses health checks to:
 
 ### Basic Health Check
 
-The minimal health check configuration in your `ftl.yaml`:
+The minimal health check configuration in your `ftl.yaml` only requires the path:
 
 ```yaml
 services:
@@ -29,30 +29,42 @@ services:
     port: 80
     health_check:
       path: /
-      interval: 10s
-      timeout: 5s
-      retries: 3
+```
+
+You can optionally configure timing parameters:
+
+```yaml
+services:
+  - name: my-app
+    image: my-app:latest
+    port: 80
+    health_check:
+      path: /
+      interval: 15s # optional
+      timeout: 10s # optional
+      retries: 3 # optional
 ```
 
 ### Configuration Parameters
 
-Each health check has four key parameters:
+Health check has one required and three optional parameters:
 
-- `path`: The HTTP endpoint to check
-
+- `path`: (Required) The HTTP endpoint to check
   - Must return 2xx or 3xx status code
   - Should be a lightweight endpoint
   - Typically `/health`, `/`, or similar
 
+Optional timing parameters:
+
 - `interval`: Time between checks
 
-  - Default: 10 seconds
+  - Default: 15 seconds
   - Should be short enough to detect issues quickly
   - But not so frequent as to overload the service
 
 - `timeout`: Maximum time to wait for response
 
-  - Default: 5 seconds
+  - Default: 10 seconds
   - Should be less than the interval
   - Consider your service's normal response time
 
@@ -74,9 +86,6 @@ services:
     port: 80
     health_check:
       path: /
-      interval: 10s
-      timeout: 5s
-      retries: 3
 ```
 
 ### 2. Dedicated Health Endpoint
@@ -90,9 +99,6 @@ services:
     port: 3000
     health_check:
       path: /health
-      interval: 10s
-      timeout: 5s
-      retries: 3
 ```
 
 ### 3. Deep Health Check
@@ -106,132 +112,7 @@ services:
     port: 8080
     health_check:
       path: /health/deep
-      interval: 15s
-      timeout: 10s
-      retries: 3
-```
-
-## Best Practices
-
-### Health Check Endpoint Design
-
-1. **Keep It Light**
-
-   - Avoid expensive operations
-   - Don't query large datasets
-   - Minimize dependency checks
-
-2. **Response Time**
-
-   - Should respond within 1-2 seconds
-   - Set timeout accordingly
-   - Consider background processing
-
-3. **Dependency Checks**
-   - Include critical dependencies only
-   - Use timeouts for external services
-   - Have fallback mechanisms
-
-### Common Patterns
-
-1. **Basic Availability**
-
-```yaml
-health_check:
-  path: /
-  interval: 10s
-  timeout: 5s
-  retries: 2
-```
-
-2. **Quick Response**
-
-```yaml
-health_check:
-  path: /ping
-  interval: 5s
-  timeout: 2s
-  retries: 3
-```
-
-3. **Thorough Check**
-
-```yaml
-health_check:
-  path: /health/deep
-  interval: 30s
-  timeout: 10s
-  retries: 2
-```
-
-## Monitoring Health Checks
-
-Track health check status using FTL's logging:
-
-```bash
-ftl logs -f
-```
-
-The logs will show:
-
-- Health check attempts
-- Success/failure status
-- Response times
-- Error messages
-
-## Troubleshooting
-
-### 1. Failed Health Checks
-
-**Problem**: Health checks consistently fail during deployment.
-
-**Solution**:
-
-- Verify the health check endpoint exists
-- Check endpoint permissions
-- Review service logs:
-
-```bash
-ftl logs service-name
-```
-
-### 2. Slow Health Checks
-
-**Problem**: Health checks timeout frequently.
-
-**Solution**:
-
-- Optimize the health check endpoint
-- Increase the timeout value
-- Reduce dependency checks
-
-### 3. Flaky Health Checks
-
-**Problem**: Health checks pass intermittently.
-
-**Solution**:
-
-- Add retry logic in the health check
-- Increase the retry count
-- Check for resource constraints
-
-## Example Implementations
-
-### HTTP Service
-
-```yaml
-services:
-  - name: http-service
-    image: http-service:latest
-    port: 80
-    health_check:
-      path: /health
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    routes:
-      - path: /
-        strip_prefix: false
+      interval: 30s # customized for deeper checks
 ```
 
 ### API Service
@@ -248,7 +129,6 @@ services:
       retries: 3
     routes:
       - path: /api
-        strip_prefix: true
 ```
 
 ::: tip

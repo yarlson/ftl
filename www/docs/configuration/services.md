@@ -12,22 +12,20 @@ The `services` section defines your application services that will be deployed a
 ```yaml
 services:
   - name: web
-    build:
-      context: .
-      dockerfile: Dockerfile
+    path: ./src
     port: 3000
     routes:
       - path: /
 ```
 
-| Field    | Description                                          |
-| -------- | ---------------------------------------------------- |
-| `name`   | Unique identifier for the service                    |
-| `build`  | Docker build configuration for the service           |
-| `port`   | Port that the service listens on                     |
-| `routes` | HTTP route configuration for the Nginx reverse proxy |
+| Field    | Description                                                                    |
+| -------- | ------------------------------------------------------------------------------ |
+| `name`   | Unique identifier for the service                                              |
+| `path`   | Path to directory containing Dockerfile and source code (relative to ftl.yaml) |
+| `port`   | Port that the service listens on                                               |
+| `routes` | HTTP route configuration for the Nginx reverse proxy                           |
 
-## Build Configuration
+## Image Configuration
 
 You can specify how to build your service's Docker image in two ways:
 
@@ -38,9 +36,7 @@ When no `image` field is specified, FTL will build and transfer the image direct
 ```yaml
 services:
   - name: web
-    build:
-      context: .
-      dockerfile: Dockerfile
+    path: ./src
 ```
 
 ### Registry-based Deployment
@@ -51,9 +47,7 @@ When using a Docker registry:
 services:
   - name: web
     image: registry.example.com/my-app:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    path: ./src
 ```
 
 ## Health Checks
@@ -103,6 +97,7 @@ services:
   - name: web
     port: ${PORT}
     image: ${IMAGE_NAME}
+    path: ${SOURCE_PATH}
 ```
 
 All environment variables must be set in the environment before running FTL commands.
@@ -113,13 +108,10 @@ All environment variables must be set in the environment before running FTL comm
 services:
   - name: my-app
     image: my-app:latest
+    path: ./src
     port: 80
     health_check:
       path: /
-      interval: 10s
-      timeout: 5s
-      retries: 3
     routes:
       - path: /
-        strip_prefix: false
 ```

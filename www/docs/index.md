@@ -142,8 +142,7 @@ services:
 
 # Need a database? Just add it here
 dependencies:
-  - name: postgres
-    image: postgres:16
+  - postgres:16
 ```
 
 </div>

@@ -28,7 +28,7 @@ Before implementing zero-downtime deployments, ensure you have:
 
 ### 1. Configure Health Checks
 
-Health checks are crucial for zero-downtime deployments. FTL uses them to verify that new containers are ready before routing traffic.
+Health checks are crucial for zero-downtime deployments. FTL uses them to verify that new containers are ready before routing traffic. The minimal required configuration only needs the path to your health check endpoint:
 
 ```yaml
 services:
@@ -37,21 +37,48 @@ services:
     port: 80
     health_check:
       path: /
-      interval: 10s
-      timeout: 5s
+```
+
+You can further customize the health check behavior with additional timing parameters. The `interval`, `timeout`, and `retries` fields are all optional, with defaults of 15s, 10s, and 3 respectively:
+
+```yaml
+services:
+  - name: my-app
+    image: my-app:latest
+    port: 80
+    health_check:
+      path: /
+      interval: 15s
+      timeout: 10s
       retries: 3
 ```
 
-The health check configuration parameters:
-
-- `path`: The endpoint to check (must return 2xx or 3xx status)
-- `interval`: Time between health checks
-- `timeout`: Maximum time to wait for a response
-- `retries`: Number of consecutive successful checks required
-
 ### 2. Configure Service Routes
 
-Proper route configuration ensures traffic is handled correctly during deployments:
+For route configuration, only the path is required. Here's a minimal route setup:
+
+```yaml
+services:
+  - name: my-app
+    image: my-app:latest
+    port: 80
+    routes:
+      - path: /
+```
+
+Routes can be customized with the `strip_prefix` parameter, which defaults to false if not specified:
+
+```yaml
+services:
+  - name: my-app
+    image: my-app:latest
+    port: 80
+    routes:
+      - path: /
+        strip_prefix: false
+```
+
+Here's a complete example showing project configuration with minimal service settings:
 
 ```yaml
 project:
@@ -68,9 +95,10 @@ services:
   - name: my-app
     image: my-app:latest
     port: 80
+    health_check:
+      path: /health
     routes:
       - path: /
-        strip_prefix: false
 ```
 
 ### 3. Deployment Process
@@ -113,6 +141,8 @@ FTL will automatically:
 
 ### 3. Configuration Recommendations
 
+Here's a minimal recommended configuration that includes only the required parameters:
+
 ```yaml
 services:
   - name: my-app
@@ -120,78 +150,8 @@ services:
     port: 80
     health_check:
       path: /health
-      interval: 10s
-      timeout: 5s
-      retries: 3
     routes:
       - path: /
-        strip_prefix: false
-```
-
-## Common Issues and Solutions
-
-### 1. Failed Health Checks
-
-**Problem**: New containers fail health checks during deployment.
-
-**Solution**:
-
-- Verify health check endpoint functionality
-- Increase timeout or retries if needed
-- Check application logs using:
-
-```bash
-ftl logs my-app
-```
-
-### 2. Lingering Connections
-
-**Problem**: Old containers have lingering connections.
-
-**Solution**:
-
-- Implement graceful shutdown in your application
-- Handle SIGTERM signals properly
-- Consider increasing shutdown timeout if needed
-
-### 3. Database Migrations
-
-**Problem**: Schema changes can break zero-downtime deployments.
-
-**Solution**:
-
-- Use backward-compatible database migrations
-- Deploy schema changes separately from application changes
-- Consider using blue-green deployment for major database changes
-
-## Monitoring Deployments
-
-Track deployment progress using FTL's logging capabilities:
-
-```bash
-ftl logs -f
-```
-
-This will show real-time logs during deployment, including:
-
-- Container health check status
-- Traffic routing changes
-- Container lifecycle events
-
-## Rollback Procedure
-
-If issues occur during deployment:
-
-1. Stop the problematic deployment:
-
-```bash
-Ctrl+C
-```
-
-2. Redeploy the previous version:
-
-```bash
-ftl deploy
 ```
 
 FTL will automatically handle the rollback process with zero downtime.

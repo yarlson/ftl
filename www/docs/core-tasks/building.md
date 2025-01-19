@@ -31,10 +31,10 @@ When no `image` field is specified in your service configuration, FTL will:
 ```yaml
 services:
   - name: web
-    build:
-      context: .
-      dockerfile: Dockerfile
+    path: ./src
 ```
+
+The path is relative to your `ftl.yaml` file location and should contain your application's source code and Dockerfile.
 
 ::: tip
 This method is simpler as it doesn't require registry configuration and credentials management.
@@ -54,9 +54,7 @@ When you specify the `image` field, FTL will:
 services:
   - name: web
     image: registry.example.com/my-app:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    path: ./src
 ```
 
 ::: warning
@@ -74,13 +72,27 @@ ftl build --skip-push
 
 ## Understanding Docker Builds
 
-### Build Context
+### Source Code Location
 
-The build context is the set of files located in the specified `context` path. Docker sends this context to the daemon during the build. Keep your context clean to ensure faster builds:
+The source code and Dockerfile should be placed in the directory specified by the `path` field. This path is resolved relative to your `ftl.yaml` file location. For example:
 
-- Use `.dockerignore` to exclude unnecessary files
-- Keep build context as small as possible
-- Place Dockerfile in a clean directory if needed
+If your project structure is:
+
+```
+/project
+  ├── ftl.yaml
+  └── src
+      ├── Dockerfile
+      └── app files...
+```
+
+Your configuration would be:
+
+```yaml
+services:
+  - name: web
+    path: ./src
+```
 
 ### Layer Caching
 
@@ -155,7 +167,7 @@ Benefits:
 
    - Leverage Docker layer caching
    - Use `.dockerignore` effectively
-   - Keep build context minimal
+   - Keep source directory clean
 
 6. **Security**
    - Use official base images
@@ -169,7 +181,7 @@ Benefits:
 
 If builds are slow:
 
-- Check build context size
+- Check source directory size
 - Optimize layer caching
 - Use `.dockerignore` appropriately
 - Consider multi-stage builds
@@ -190,8 +202,6 @@ If cache isn't working effectively:
 - Check command ordering in Dockerfile
 - Verify file changes aren't invalidating cache
 - Use appropriate COPY commands
-
-## Common Issues
 
 ### Registry Authentication
 

@@ -5,7 +5,7 @@ description: Learn how to deploy applications with FTL
 
 # Deployment
 
-FTL automates the deployment of your applications, handling everything from image transfers to SSL certificate management.
+FTL automates the deployment of your applications by taking care of image transfers, volume and network setups, SSL certificate management, and much more.
 
 ## Basic Usage
 
@@ -17,45 +17,49 @@ ftl deploy
 
 ## Deployment Process
 
-The deployment process follows these steps:
+FTL follows these steps when deploying an application:
 
 1. **SSH Connection**
 
-   - Connects to your configured server via SSH
-   - Verifies server access and permissions
+   - Connects to your configured server via SSH.
+   - Verifies server access and permissions.
 
 2. **Image Handling**
 
-   - For direct SSH transfer (no `image` field):
-     - Verifies server access and permissions
-     - Transfers Docker images directly to server
-     - Uses FTL's layer caching for optimization
-   - For registry-based deployment (`image` field specified):
-     - Pulls images from configured registry
-     - Requires registry authentication (username/password only)
+   - **Direct Transfer** (when no `image` field is specified):
+     - Verifies server access and permissions.
+     - Transfers Docker images directly to the server.
+     - Uses layer caching for faster transfers.
+   - **Registry Deployment** (when an `image` field is provided):
+     - Pulls images from the specified registry.
+     - Requires registry authentication (username/password).
 
 3. **Environment Setup**
 
-   - Sets up volumes and networks
-   - Configures environment variables
-   - Starts dependencies if defined
+   - Creates and attaches named volumes.
+   - Configures networks.
+   - Expands and injects environment variables.
+   - Starts any supporting services defined as dependencies.
 
 4. **Service Deployment**
 
-   - Launches services with health checks
-   - Performs zero-downtime container replacement
-   - Configures Nginx reverse proxy
+   - Launches application services with health checks.
+   - Performs zero-downtime container replacements.
+   - Configures the Nginx reverse proxy for routing.
 
 5. **SSL/TLS Setup**
 
-   - Manages SSL/TLS certificates via ACME
-   - Configures HTTPS endpoints
+   - Manages SSL/TLS certificates via ACME.
+   - Configures HTTPS endpoints for your application.
 
 6. **Cleanup**
-   - Removes unused containers
-   - Cleans up temporary resources
+
+   - Removes unused containers.
+   - Cleans up temporary resources.
 
 ## Configuration
+
+FTL uses a YAML configuration file where you define your project, server, services, dependencies, and volumes. FTL supports default settings and dynamic expansion of environment variables. Below are examples for various sections.
 
 ### Basic Service Configuration
 
@@ -73,92 +77,121 @@ server:
 services:
   - name: web
     port: 80
+    path: ./src
     health_check:
       path: /
-      interval: 10s
-      timeout: 5s
-      retries: 3
     routes:
       - path: /
-        strip_prefix: false
 ```
 
 ### Dependencies Configuration
+
+Dependencies are used to launch supporting services (for example, databases and caches). You can either use a short notation to take advantage of default settings or provide a full configuration when you need to override defaults.
+
+**Using default settings:**
+
+```yaml
+dependencies:
+  - "postgres:16"
+```
+
+In the above example, FTL will automatically:
+
+- Set the dependency’s name to `postgres`
+- Use the Docker image `postgres:16`
+- Configure standard ports and named volumes (e.g. `postgres_data:/var/lib/postgresql/data`)
+- Expand environment variables such as:
+  ```yaml
+  env:
+    - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    - POSTGRES_USER=${POSTGRES_USER:-postgres}
+    - POSTGRES_DB=${POSTGRES_DB:-app}
+  ```
+
+**Overriding defaults:**
 
 ```yaml
 dependencies:
   - name: postgres
     image: postgres:16
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - my_pg_data:/custom/postgres/path
     env:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-app}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-secret}
+      - POSTGRES_USER=${POSTGRES_USER:-customuser}
 ```
 
+When you override defaults, FTL uses your provided values rather than applying the built-in settings.
+
 ### Volume Configuration
+
+Named volumes can be provided explicitly. FTL collects volume names from your services and dependencies.
 
 ```yaml
 volumes:
   - postgres_data
 ```
 
-## Environment Variables
+### Environment Variables
 
-FTL supports two types of environment variables:
+FTL supports environment variable expansion in all configuration fields. You can define variables as follows:
 
-1. **Required Variables**
+- **Required Variables:**
 
-   ```yaml
-   env:
-     - DATABASE_URL=${DATABASE_URL}
-   ```
+  ```yaml
+  env:
+    - DATABASE_URL=${DATABASE_URL}
+  ```
 
-2. **Optional Variables with Defaults**
-   ```yaml
-   env:
-     - POSTGRES_USER=${POSTGRES_USER:-postgres}
-   ```
+- **Optional Variables with Defaults:**
+
+  ```yaml
+  env:
+    - POSTGRES_USER=${POSTGRES_USER:-postgres}
+  ```
+
+- **Required with Custom Message:**
+
+  ```yaml
+  env:
+    - API_KEY=${API_KEY:?API_KEY must be set}
+  ```
 
 ## Health Checks
 
-Health checks ensure your services are running correctly:
+Health checks are critical for ensuring that your services are running properly. For example:
 
 ```yaml
 services:
   - name: api
     health_check:
       path: /health
-      interval: 10s
-      timeout: 5s
-      retries: 3
 ```
 
 ## Best Practices
 
 1. **Configuration Management**
 
-   - Use environment variables for sensitive data
-   - Keep configuration DRY
-   - Document all required variables
+   - Use environment variables to securely manage sensitive data.
+   - Keep configuration DRY and well-documented.
+   - Document all required environment variables.
 
 2. **Deployment Strategy**
 
-   - Start with dependencies first
-   - Use health checks for all services
-   - Monitor logs during deployment
+   - Start dependent services before deploying the main application.
+   - Define health checks for every service.
+   - Monitor logs during deployment for any issues.
 
 3. **Security**
 
-   - Use HTTPS for all services
-   - Keep SSL certificates up to date
-   - Secure sensitive environment variables
+   - Use HTTPS for all external communications.
+   - Regularly update and manage SSL certificates.
+   - Secure sensitive environment variables with proper expansion patterns.
 
 4. **Monitoring**
-   - Check service health after deployment
-   - Monitor resource usage
-   - Keep track of logs
+   - Verify service health post-deployment.
+   - Monitor application resource usage.
+   - Review logs to proactively address issues.
 
 ## Common Issues
 
@@ -166,37 +199,37 @@ services:
 
 If services fail health checks:
 
-- Verify the health check endpoint
-- Check service logs
-- Ensure correct port configuration
-- Verify service startup time
+- Verify the health check endpoint is correct.
+- Inspect service logs.
+- Ensure correct port and path configurations.
+- Adjust startup time if necessary.
 
 ### SSL Certificate Issues
 
-If SSL setup fails:
+If SSL/TLS setup fails:
 
-- Verify domain DNS configuration
-- Check email configuration
-- Ensure ports 80/443 are accessible
+- Ensure DNS records are correct.
+- Verify email configuration.
+- Confirm ports 80 and 443 are accessible.
 
 ### Network Issues
 
-If services can't communicate:
+If services cannot communicate:
 
-- Check network configuration
-- Verify port mappings
-- Ensure dependencies are running
+- Check your network configuration.
+- Verify volume mappings and port exposures.
+- Ensure all required services are running.
 
 ## Next Steps
 
-After successful deployment:
+After deployment:
 
 1. Learn about [Logging](./logging.md)
 2. Configure [SSL Management](../guides/ssl-management.md)
-3. Explore [Zero-downtime Deployments](../guides/zero-downtime.md)
+3. Explore [Zero-Downtime Deployments](../guides/zero-downtime.md)
 
 ::: warning
-Always verify your application's functionality after deployment.
+Always verify your application’s functionality after deployment.
 :::
 
 ## Reference

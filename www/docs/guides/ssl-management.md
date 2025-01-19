@@ -34,7 +34,6 @@ services:
     port: 80
     routes:
       - path: /
-        strip_prefix: false
 ```
 
 The essential fields for SSL management are:
@@ -80,14 +79,12 @@ services:
     port: 80
     routes:
       - path: /
-        strip_prefix: false
 
   - name: api
     image: api:latest
     port: 3000
     routes:
       - path: /api
-        strip_prefix: true
 ```
 
 ## Best Practices

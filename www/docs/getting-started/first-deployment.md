@@ -46,15 +46,15 @@ If you don't specify an `image` field in your service configuration, FTL will:
 - Transfer it directly to your server via SSH
 - Optimize transfers using layer caching
 
+The `path` field in your service configuration specifies the directory containing your application's source code and Dockerfile. This path is resolved relative to the location of your `ftl.yaml` file. For example:
+
 ```yaml
 services:
   - name: web
-    build:
-      context: .
-      dockerfile: Dockerfile
+    path: ./src
 ```
 
-This method is simpler as it doesn't require registry setup.
+In this configuration, if your `ftl.yaml` is in `/project/ftl.yaml`, FTL will look for the Dockerfile in `/project/src/Dockerfile`.
 
 #### Registry-based Deployment
 
@@ -102,19 +102,13 @@ The deployment process:
 
 After deployment, verify your application is running:
 
-1. Check the application status:
-
-   ```bash
-   ftl status
-   ```
-
-2. View application logs:
+1. View application logs:
 
    ```bash
    ftl logs
    ```
 
-3. Access your application through the configured domain
+2. Access your application through the configured domain
 
 ## Common First Deployment Issues
 
@@ -161,18 +155,12 @@ Here's a complete example of deploying a simple web application:
 
    services:
      - name: web
-       build:
-         context: .
-         dockerfile: Dockerfile
+       path: ./src
        port: 3000
        health_check:
          path: /health
-         interval: 10s
-         timeout: 5s
-         retries: 3
        routes:
          - path: /
-           strip_prefix: false
    ```
 
    This example uses direct SSH transfer. For registry-based deployment, add the `image` field:
@@ -182,17 +170,12 @@ Here's a complete example of deploying a simple web application:
      - name: web
        image: registry.example.com/my-web-app:latest
        build:
-         context: .
-         dockerfile: Dockerfile
+         path: ./src # Path to directory containing Dockerfile
        port: 3000
        health_check:
          path: /health
-         interval: 10s
-         timeout: 5s
-         retries: 3
        routes:
          - path: /
-           strip_prefix: false
    ```
 
 2. Deployment commands:
@@ -205,8 +188,7 @@ Here's a complete example of deploying a simple web application:
    ftl build
    ftl deploy
 
-   # Check status and logs
-   ftl status
+   # Check logs
    ftl logs
    ```
 
