@@ -217,6 +217,7 @@ func ParseConfig(data []byte) (*Config, error) {
 
 	validate := validator.New()
 
+	// Register custom validations
 	_ = validate.RegisterValidation("volume_reference", func(fl validator.FieldLevel) bool {
 		value := fl.Field().String()
 		parts := strings.Split(value, ":")
@@ -232,7 +233,64 @@ func ParseConfig(data []byte) (*Config, error) {
 		return nil, fmt.Errorf("validation error: %v", err)
 	}
 
+	// Collect all named volumes from config.Services and config.Dependencies,
+	// plus any that were explicitly listed in config.Volumes, deduplicating them.
+	uniqueVolNames := make(map[string]struct{})
+
+	// First, preserve any volumes already defined in config.Volumes
+	for _, volName := range config.Volumes {
+		uniqueVolNames[volName] = struct{}{}
+	}
+
+	// Check volumes in each service
+	for _, svc := range config.Services {
+		for _, volRef := range svc.Volumes {
+			if volName := extractNamedVolume(volRef); volName != "" {
+				uniqueVolNames[volName] = struct{}{}
+			}
+		}
+	}
+
+	// Check volumes in each dependency
+	for _, dep := range config.Dependencies {
+		for _, volRef := range dep.Volumes {
+			if volName := extractNamedVolume(volRef); volName != "" {
+				uniqueVolNames[volName] = struct{}{}
+			}
+		}
+	}
+
+	// Convert to a sorted slice
+	finalVols := make([]string, 0, len(uniqueVolNames))
+	for name := range uniqueVolNames {
+		finalVols = append(finalVols, name)
+	}
+	sort.Strings(finalVols)
+	config.Volumes = finalVols
+
 	return &config, nil
+}
+
+// extractNamedVolume checks if volRef is in the form "NAME:/some/path"
+// and if NAME starts with a letter. If so, it returns NAME; otherwise "".
+func extractNamedVolume(volRef string) string {
+	parts := strings.SplitN(volRef, ":", 2)
+	if len(parts) < 2 {
+		return ""
+	}
+	namePart := parts[0]
+	if len(namePart) == 0 {
+		return ""
+	}
+
+	// Check if first character is a letter [a-zA-Z].
+	first := namePart[0]
+	if (first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') {
+		return namePart
+	}
+
+	// If it starts with '/', '.', or anything else, we treat it as a path, not a named volume
+	return ""
 }
 
 func (s *Service) Hash() (string, error) {

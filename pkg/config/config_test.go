@@ -341,3 +341,120 @@ dependencies:
 	assert.Equal(suite.T(), "elasticsearch", config.Dependencies[2].Name)
 	assert.Equal(suite.T(), "elasticsearch:latest", config.Dependencies[2].Image)
 }
+
+func (suite *ConfigTestSuite) TestParseConfig_VolumesExtraction() {
+	yamlData := []byte(`
+project:
+  name: "test-project"
+  domain: "example.com"
+  email: "test@example.com"
+
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
+
+services:
+  - name: "web"
+    image: "nginx:latest"
+    port: 80
+    routes:
+      - path: "/"
+    volumes:
+      - "my-vol:/app/data"
+      - "/host/data:/container/data"  # not a named volume
+  - name: "worker"
+    image: "golang:latest"
+    routes:
+      - path: "/worker"
+    port: 9000
+    volumes:
+      - "my-other-vol:/srv"
+
+dependencies:
+  - name: "some-db"
+    image: "postgres:15"
+    volumes:
+      - "third-vol:/some/dep/path"
+      - "123bad:/skip"
+      - "logs:/var/log"
+
+volumes:
+  - "predefined-volume"
+`)
+
+	config, err := ParseConfig(yamlData)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config)
+
+	expected := []string{"logs", "my-other-vol", "my-vol", "predefined-volume", "third-vol"}
+	assert.Equal(suite.T(), expected, config.Volumes)
+}
+
+func (suite *ConfigTestSuite) TestParseConfig_VolumesExtraction_NoNamedVolumes() {
+	yamlData := []byte(`
+project:
+  name: "path-volumes-only"
+  domain: "example.com"
+  email: "test@example.com"
+
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
+
+services:
+  - name: "web"
+    image: "nginx:latest"
+    port: 80
+    volumes:
+      - "/absolute/path:/container/path"
+      - "./relative:/opt/app"
+dependencies:
+  - name: "redis"
+    image: "redis:latest"
+    volumes:
+      - "/redis/logs:/var/log/redis"
+      - "./some-local-dir:/data"
+volumes: []
+`)
+
+	config, err := ParseConfig(yamlData)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config)
+
+	assert.Empty(suite.T(), config.Volumes)
+}
+
+func (suite *ConfigTestSuite) TestParseConfig_VolumesExtraction_DefaultConfigs() {
+	yamlData := []byte(`
+project:
+  name: "default-configs-only"
+  domain: "example.com"
+  email: "test@example.com"
+
+server:
+  host: "example.com"
+  port: 22
+  user: "user"
+  ssh_key: "~/.ssh/id_rsa"
+
+services:
+  - name: "web"
+    image: "nginx:latest"
+    routes:
+      - path: "/"
+    port: 80
+dependencies:
+  - "redis:6"
+`)
+
+	config, err := ParseConfig(yamlData)
+	assert.NoError(suite.T(), err)
+	assert.NotNil(suite.T(), config)
+
+	expected := []string{"redis_data"}
+	assert.Equal(suite.T(), expected, config.Volumes)
+}
