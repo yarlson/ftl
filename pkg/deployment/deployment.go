@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"fmt"
+	"github.com/yarlson/ftl/pkg/runner/local"
 	"io"
 	"path/filepath"
 	"strings"
@@ -27,13 +28,14 @@ type ImageSyncer interface {
 }
 
 type Deployment struct {
-	runner Runner
-	syncer ImageSyncer
-	sm     *console.SpinnerManager
+	runner      Runner
+	localRunner *local.Runner
+	syncer      ImageSyncer
+	sm          *console.SpinnerManager
 }
 
 func NewDeployment(runner Runner, syncer ImageSyncer, sm *console.SpinnerManager) *Deployment {
-	return &Deployment{runner: runner, syncer: syncer, sm: sm}
+	return &Deployment{runner: runner, syncer: syncer, sm: sm, localRunner: local.NewRunner()}
 }
 
 func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Config) error {
@@ -72,6 +74,20 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 }
 
 func (d *Deployment) runCommand(ctx context.Context, command string, args ...string) (string, error) {
+	output, err := d.runner.RunCommand(ctx, command, args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to run command: %w", err)
+	}
+
+	outputBytes, readErr := io.ReadAll(output)
+	if readErr != nil {
+		return "", fmt.Errorf("failed to read command output: %v (original error: %w)", readErr, err)
+	}
+
+	return strings.TrimSpace(string(outputBytes)), nil
+}
+
+func (d *Deployment) runLocalCommand(ctx context.Context, command string, args ...string) (string, error) {
 	output, err := d.runner.RunCommand(ctx, command, args...)
 	if err != nil {
 		return "", fmt.Errorf("failed to run command: %w", err)
