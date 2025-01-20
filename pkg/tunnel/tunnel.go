@@ -3,9 +3,10 @@ package tunnel
 import (
 	"context"
 	"fmt"
-	"github.com/yarlson/ftl/pkg/config"
 	"sync"
 	"time"
+
+	"github.com/yarlson/ftl/pkg/config"
 
 	"github.com/yarlson/ftl/pkg/ssh"
 )

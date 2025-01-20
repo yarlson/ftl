@@ -408,7 +408,9 @@ func extractNamedVolume(volRef string) string {
 }
 
 func (s *Service) Hash() (string, error) {
-	sortedService := s.sortServiceFields()
+	service := *s
+	service.ImageUpdated = false
+	sortedService := service.sortServiceFields()
 	bytes, err := json.Marshal(sortedService)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal sorted service: %w", err)

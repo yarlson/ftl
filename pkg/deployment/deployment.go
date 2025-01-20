@@ -3,10 +3,11 @@ package deployment
 import (
 	"context"
 	"fmt"
-	"github.com/yarlson/ftl/pkg/runner/local"
 	"io"
 	"path/filepath"
 	"strings"
+
+	"github.com/yarlson/ftl/pkg/runner/local"
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"

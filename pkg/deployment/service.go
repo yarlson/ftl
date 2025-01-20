@@ -3,10 +3,11 @@ package deployment
 import (
 	"context"
 	"fmt"
-	"github.com/yarlson/ftl/pkg/config"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yarlson/ftl/pkg/config"
 )
 
 func (d *Deployment) deployServices(ctx context.Context, project string, services []config.Service) error {
