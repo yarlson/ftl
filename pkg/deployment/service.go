@@ -122,6 +122,12 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", container, err)
 	}
 
+	if service.Hooks != nil && service.Hooks.Pre != nil && service.Hooks.Pre.Remote != "" {
+		if err := d.runRemoteHook(context.Background(), container+newContainerSuffix, service.Hooks.Pre.Remote); err != nil {
+			return fmt.Errorf("remote pre-hook failed: %w", err)
+		}
+	}
+
 	oldContID, err := d.switchTraffic(project, service.Name)
 	if err != nil {
 		return fmt.Errorf("failed to switch traffic for %s: %v", container, err)
@@ -129,6 +135,12 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 
 	if err := d.cleanup(project, oldContID, service.Name); err != nil {
 		return fmt.Errorf("failed to cleanup for %s: %v", container, err)
+	}
+
+	if service.Hooks != nil && service.Hooks.Post != nil && service.Hooks.Post.Remote != "" {
+		if err := d.runRemoteHook(context.Background(), container, service.Hooks.Post.Remote); err != nil {
+			return fmt.Errorf("remote pre-hook failed: %w", err)
+		}
 	}
 
 	return nil
@@ -208,6 +220,21 @@ func (d *Deployment) cleanup(project, oldContID, service string) error {
 		if _, err := d.runCommand(context.Background(), cmd[0], cmd[1:]...); err != nil {
 			return fmt.Errorf("failed to execute command '%s': %v", strings.Join(cmd, " "), err)
 		}
+	}
+
+	return nil
+}
+
+// runRemoteHook executes the given command inside the specified container
+func (d *Deployment) runRemoteHook(ctx context.Context, containerName, command string) error {
+	if command == "" {
+		return nil
+	}
+
+	dockerCmd := fmt.Sprintf("docker exec %s sh -c \"%s\"", containerName, command)
+
+	if _, err := d.runCommand(ctx, "sh", "-c", dockerCmd); err != nil {
+		return fmt.Errorf("failed to run remote hook in container %s: %w", containerName, err)
 	}
 
 	return nil
