@@ -98,30 +98,14 @@ func (d *Deployment) installService(project string, service *config.Service) err
 		return fmt.Errorf("install failed for %s: container is unhealthy: %w", container, err)
 	}
 
-	if service.Hooks != nil && service.Hooks.Pre != nil {
-		if service.Hooks.Pre.Local != "" {
-			if _, err := d.runLocalCommand(context.Background(), service.Hooks.Pre.Local); err != nil {
-				return fmt.Errorf("local pre-hook failed: %w", err)
-			}
-		}
-		if service.Hooks.Pre.Remote != "" {
-			if err := d.runRemoteHook(context.Background(), container, service.Hooks.Pre.Remote); err != nil {
-				return fmt.Errorf("remote pre-hook failed: %w", err)
-			}
-		}
+	err := d.processPreHooks(service, container)
+	if err != nil {
+		return err
 	}
 
-	if service.Hooks != nil && service.Hooks.Post != nil {
-		if service.Hooks.Post.Local != "" {
-			if _, err := d.runLocalCommand(context.Background(), service.Hooks.Post.Local); err != nil {
-				return fmt.Errorf("local post-hook failed: %w", err)
-			}
-		}
-		if service.Hooks.Post.Remote != "" {
-			if err := d.runRemoteHook(context.Background(), container, service.Hooks.Post.Remote); err != nil {
-				return fmt.Errorf("remote pre-hook failed: %w", err)
-			}
-		}
+	err = d.processPostHooks(service, container)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -148,17 +132,9 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", container, err)
 	}
 
-	if service.Hooks != nil && service.Hooks.Pre != nil {
-		if service.Hooks.Pre.Local != "" {
-			if _, err := d.runLocalCommand(context.Background(), service.Hooks.Pre.Local); err != nil {
-				return fmt.Errorf("local pre-hook failed: %w", err)
-			}
-		}
-		if service.Hooks.Pre.Remote != "" {
-			if err := d.runRemoteHook(context.Background(), container+newContainerSuffix, service.Hooks.Pre.Remote); err != nil {
-				return fmt.Errorf("remote pre-hook failed: %w", err)
-			}
-		}
+	err := d.processPreHooks(service, container+newContainerSuffix)
+	if err != nil {
+		return err
 	}
 
 	oldContID, err := d.switchTraffic(project, service.Name)
@@ -170,16 +146,46 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 		return fmt.Errorf("failed to cleanup for %s: %v", container, err)
 	}
 
-	if service.Hooks != nil && service.Hooks.Post != nil {
-		if service.Hooks.Post.Local != "" {
-			if _, err := d.runLocalCommand(context.Background(), service.Hooks.Post.Local); err != nil {
-				return fmt.Errorf("local post-hook failed: %w", err)
-			}
+	err = d.processPostHooks(service, container)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *Deployment) processPreHooks(service *config.Service, container string) error {
+	if service.Hooks == nil || service.Hooks.Pre == nil {
+		return nil
+	}
+
+	if service.Hooks.Pre.Local != "" {
+		if _, err := d.runLocalCommand(context.Background(), service.Hooks.Pre.Local); err != nil {
+			return fmt.Errorf("local pre-hook failed: %w", err)
 		}
-		if service.Hooks.Post.Remote != "" {
-			if err := d.runRemoteHook(context.Background(), container, service.Hooks.Post.Remote); err != nil {
-				return fmt.Errorf("remote pre-hook failed: %w", err)
-			}
+	}
+	if service.Hooks.Pre.Remote != "" {
+		if err := d.runRemoteHook(context.Background(), container, service.Hooks.Pre.Remote); err != nil {
+			return fmt.Errorf("remote pre-hook failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (d *Deployment) processPostHooks(service *config.Service, container string) error {
+	if service.Hooks == nil || service.Hooks.Post == nil {
+		return nil
+	}
+
+	if service.Hooks.Post.Local != "" {
+		if _, err := d.runLocalCommand(context.Background(), service.Hooks.Post.Local); err != nil {
+			return fmt.Errorf("local post-hook failed: %w", err)
+		}
+	}
+	if service.Hooks.Post.Remote != "" {
+		if err := d.runRemoteHook(context.Background(), container, service.Hooks.Post.Remote); err != nil {
+			return fmt.Errorf("remote pre-hook failed: %w", err)
 		}
 	}
 
