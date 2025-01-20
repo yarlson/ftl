@@ -187,11 +187,11 @@ services:
 
 	// Test Pre Hooks
 	assert.NotNil(suite.T(), config.Services[0].Hooks.Pre)
-	assert.Equal(suite.T(), "echo 'local pre-hook'", config.Services[0].Hooks.Pre)
+	assert.Equal(suite.T(), "echo 'local pre-hook'", config.Services[0].Hooks.Pre.Remote)
 
 	// Test Post Hooks
 	assert.NotNil(suite.T(), config.Services[0].Hooks.Post)
-	assert.Equal(suite.T(), "echo 'local post-hook'", config.Services[0].Hooks.Post)
+	assert.Equal(suite.T(), "echo 'local post-hook'", config.Services[0].Hooks.Post.Remote)
 }
 
 func (suite *ConfigTestSuite) TestParseConfig_PartialHooks() {
@@ -223,11 +223,10 @@ services:
 
 	// Test Pre Hooks
 	assert.NotNil(suite.T(), config.Services[0].Hooks.Pre)
-	assert.Equal(suite.T(), "echo 'only local pre-hook'", config.Services[0].Hooks.Pre)
+	assert.Equal(suite.T(), "echo 'only local pre-hook'", config.Services[0].Hooks.Pre.Remote)
 
 	// Test Post Hooks
-	assert.NotNil(suite.T(), config.Services[0].Hooks.Post)
-	assert.Equal(suite.T(), "", config.Services[0].Hooks.Post)
+	assert.Nil(suite.T(), config.Services[0].Hooks.Post)
 }
 
 func (suite *ConfigTestSuite) TestParseConfig_InvalidHookFormat() {

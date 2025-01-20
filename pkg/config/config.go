@@ -100,6 +100,49 @@ type Dependency struct {
 	Container *Container `yaml:"container"`
 }
 
+// Hooks now supports either a simple remote command string
+// or a map with local/remote commands.
+type Hooks struct {
+	Pre  *HookItem `yaml:"pre"`
+	Post *HookItem `yaml:"post"`
+}
+
+// HookItem is used for either a single remote command (as a string),
+// or a map of { remote, local } commands.
+type HookItem struct {
+	Remote string `yaml:"remote,omitempty"`
+	Local  string `yaml:"local,omitempty"`
+}
+
+// UnmarshalYAML is a custom Unmarshaler to allow HookItem to be specified as a string or map.
+func (h *HookItem) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Tag {
+	case "!!str":
+		// If user wrote: pre: "echo 'Pre-hook command'"
+		// treat it as a remote command by default.
+		if err := node.Decode(&h.Remote); err != nil {
+			return err
+		}
+		return nil
+
+	case "!!map":
+		// If user wrote:
+		// pre:
+		//   remote: "echo 'Running remote'"
+		//   local: "echo 'Running local'"
+		type hookAlias HookItem
+		var temp hookAlias
+		if err := node.Decode(&temp); err != nil {
+			return err
+		}
+		*h = HookItem(temp)
+		return nil
+
+	default:
+		return fmt.Errorf("invalid hook format (must be string or map), got: %s", node.Tag)
+	}
+}
+
 // getDefaultConfig retrieves a copy of the default config (if present),
 // then applies the provided version to the Image.
 func getDefaultConfig(baseName, version string) (*Dependency, bool) {
@@ -202,11 +245,6 @@ func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 type Volume struct {
 	Name string `yaml:"name" validate:"required"`
 	Path string `yaml:"path" validate:"required,unix_path"`
-}
-
-type Hooks struct {
-	Pre  string `yaml:"pre"`
-	Post string `yaml:"post"`
 }
 
 // expandWithEnvAndDefault expands environment variables within a single string.
