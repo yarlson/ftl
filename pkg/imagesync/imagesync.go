@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"sync"
 
@@ -130,7 +132,6 @@ type ImageData struct {
 		WorkingDir   string   `json:"WorkingDir"`
 		Entrypoint   []string `json:"Entrypoint"`
 		OnBuild      []string `json:"OnBuild"`
-		Labels       struct{} `json:"Labels"`
 	} `json:"Config"`
 	RootFS struct {
 		Type    string   `json:"Type"`
@@ -142,7 +143,7 @@ type ImageData struct {
 }
 
 func (s *ImageSync) inspectLocalImage(image string) (*ImageData, error) {
-	cmd := exec.Command("docker", "inspect", image)
+	cmd := exec.Command("docker", "image", "inspect", image)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("docker inspect failed: %w", err)
@@ -161,7 +162,7 @@ func (s *ImageSync) inspectLocalImage(image string) (*ImageData, error) {
 }
 
 func (s *ImageSync) inspectRemoteImage(ctx context.Context, image string) (*ImageData, error) {
-	outputReader, err := s.runner.RunCommand(ctx, "docker", "inspect", image)
+	outputReader, err := s.runner.RunCommand(ctx, "docker", "image", "inspect", image)
 	if err != nil {
 		return nil, err
 	}
@@ -385,18 +386,40 @@ func (s *ImageSync) loadRemoteImage(ctx context.Context, image string) error {
 
 // Helper functions
 
+// compareImageData compares two ImageData structures by sorting slice fields
+// and performing a deep equality check.
 func compareImageData(local, remote *ImageData) bool {
-	localJSON, err := json.Marshal(local)
-	if err != nil {
+	if local == nil && remote == nil {
+		return true
+	}
+	if local == nil || remote == nil {
 		return false
 	}
 
-	remoteJSON, err := json.Marshal(remote)
-	if err != nil {
-		return false
-	}
+	// Make shallow copies so that we don't mutate the original data.
+	l := *local
+	r := *remote
 
-	return string(localJSON) == string(remoteJSON)
+	// Sort slices within Config
+	sort.Strings(l.Config.Env)
+	sort.Strings(r.Config.Env)
+
+	// While `Cmd` and `Entrypoint` typically preserve order, you can still
+	// sort them if you want to ensure that differences in ordering
+	// don’t cause a mismatch:
+	sort.Strings(l.Config.Cmd)
+	sort.Strings(r.Config.Cmd)
+	sort.Strings(l.Config.Entrypoint)
+	sort.Strings(r.Config.Entrypoint)
+
+	// Sort slices within RootFS
+	sort.Strings(l.RootFS.Layers)
+	sort.Strings(r.RootFS.Layers)
+	sort.Strings(l.RootFS.DiffIDs)
+	sort.Strings(r.RootFS.DiffIDs)
+
+	// Now compare the structs directly.
+	return reflect.DeepEqual(l, r)
 }
 
 func contains(slice []string, item string) bool {
