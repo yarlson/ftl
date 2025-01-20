@@ -98,6 +98,18 @@ func (d *Deployment) installService(project string, service *config.Service) err
 		return fmt.Errorf("install failed for %s: container is unhealthy: %w", container, err)
 	}
 
+	if service.Hooks != nil && service.Hooks.Pre != nil && service.Hooks.Pre.Remote != "" {
+		if err := d.runRemoteHook(context.Background(), container, service.Hooks.Pre.Remote); err != nil {
+			return fmt.Errorf("remote pre-hook failed: %w", err)
+		}
+	}
+
+	if service.Hooks != nil && service.Hooks.Post != nil && service.Hooks.Post.Remote != "" {
+		if err := d.runRemoteHook(context.Background(), container, service.Hooks.Post.Remote); err != nil {
+			return fmt.Errorf("remote pre-hook failed: %w", err)
+		}
+	}
+
 	return nil
 }
 
