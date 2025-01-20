@@ -60,10 +60,22 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 		return fmt.Errorf("failed to deploy dependencies: %w", err)
 	}
 
+	// Start tunnels if needed
+	tunnelCtx, tunnelCancel := context.WithCancel(ctx)
+	defer tunnelCancel()
+
+	if hasLocalHooks(cfg) {
+		if err := d.startTunnels(tunnelCtx, cfg); err != nil {
+			return fmt.Errorf("failed to start tunnels: %w", err)
+		}
+	}
+
 	// Deploy services
 	if err := d.deployServices(ctx, project, cfg.Services); err != nil {
 		return fmt.Errorf("failed to deploy services: %w", err)
 	}
+
+	tunnelCancel()
 
 	// Setup proxy
 	if err := d.startProxy(ctx, project, cfg); err != nil {

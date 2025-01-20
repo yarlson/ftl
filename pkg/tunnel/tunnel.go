@@ -3,14 +3,15 @@ package tunnel
 import (
 	"context"
 	"fmt"
+	"github.com/yarlson/ftl/pkg/config"
 	"sync"
 	"time"
 
 	"github.com/yarlson/ftl/pkg/ssh"
 )
 
-// TunnelConfig describes which local port should forward to which remote address.
-type TunnelConfig struct {
+// Config describes which local port should forward to which remote address.
+type Config struct {
 	LocalPort  string
 	RemoteAddr string
 }
@@ -21,7 +22,7 @@ func StartTunnels(
 	host string,
 	port int,
 	user, sshKey string,
-	tunnels []TunnelConfig,
+	tunnels []Config,
 ) error {
 	if len(tunnels) == 0 {
 		return fmt.Errorf("no tunnels to establish")
@@ -32,7 +33,7 @@ func StartTunnels(
 
 	for _, t := range tunnels {
 		wg.Add(1)
-		go func(tun TunnelConfig) {
+		go func(tun Config) {
 			defer wg.Done()
 
 			err := ssh.CreateSSHTunnel(ctx, host, port, user, sshKey, tun.LocalPort, tun.RemoteAddr)
@@ -58,4 +59,17 @@ func StartTunnels(
 	}
 
 	return nil
+}
+
+func CollectDependencyTunnels(cfg *config.Config) []Config {
+	var tunnels []Config
+	for _, dep := range cfg.Dependencies {
+		for _, port := range dep.Ports {
+			tunnels = append(tunnels, Config{
+				LocalPort:  fmt.Sprintf("%d", port),
+				RemoteAddr: fmt.Sprintf("localhost:%d", port),
+			})
+		}
+	}
+	return tunnels
 }
