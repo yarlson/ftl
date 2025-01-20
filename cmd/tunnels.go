@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
-	"github.com/yarlson/ftl/pkg/ssh"
+	"github.com/yarlson/ftl/pkg/tunnel"
 )
 
 var tunnelsCmd = &cobra.Command{
@@ -41,6 +40,7 @@ func runTunnels(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// Build the same list of tunnels
 	tunnels, err := collectDependencyTunnels(cfg)
 	if err != nil {
 		spinner.ErrorWithMessagef("Failed to collect dependencies: %v", err)
@@ -51,40 +51,29 @@ func runTunnels(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// Use a cancelable context so we can shut down tunnels on Ctrl+C
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var wg sync.WaitGroup
-	errorChan := make(chan error, len(tunnels))
-
-	for _, tunnel := range tunnels {
-		wg.Add(1)
-		go func(t TunnelConfig) {
-			defer wg.Done()
-			err := ssh.CreateSSHTunnel(ctx, cfg.Server.Host, cfg.Server.Port, cfg.Server.User, cfg.Server.SSHKey, t.LocalPort, t.RemoteAddr)
-			if err != nil {
-				errorChan <- fmt.Errorf("tunnel %s -> %s failed: %v", t.LocalPort, t.RemoteAddr, err)
-			}
-		}(tunnel)
-	}
-
-	go func() {
-		wg.Wait()
-		close(errorChan)
-	}()
-
-	select {
-	case err := <-errorChan:
+	// >>>> NEW: just call our StartTunnels function <<<<
+	err = tunnel.StartTunnels(
+		ctx,
+		cfg.Server.Host, cfg.Server.Port,
+		cfg.Server.User, cfg.Server.SSHKey,
+		toTunnelConfigs(tunnels), // see helper below
+	)
+	if err != nil {
 		spinner.ErrorWithMessagef("Failed to establish tunnels: %v", err)
 		return
-	case <-time.After(2 * time.Second):
-		spinner.Complete()
 	}
 
+	// If no error arrived in 2 seconds, we assume success (like the original):
+	spinner.Complete()
 	sm.Stop()
 
 	console.Success("SSH tunnels established. Press Ctrl+C to exit.")
 
+	// Same old signal handling
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs
@@ -110,4 +99,16 @@ func collectDependencyTunnels(cfg *config.Config) ([]TunnelConfig, error) {
 		}
 	}
 	return tunnels, nil
+}
+
+// Helper that converts our cmd-level TunnelConfig into the tunnel package's TunnelConfig
+func toTunnelConfigs(src []TunnelConfig) []tunnel.TunnelConfig {
+	result := make([]tunnel.TunnelConfig, 0, len(src))
+	for _, s := range src {
+		result = append(result, tunnel.TunnelConfig{
+			LocalPort:  s.LocalPort,
+			RemoteAddr: s.RemoteAddr,
+		})
+	}
+	return result
 }
