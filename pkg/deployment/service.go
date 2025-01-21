@@ -99,7 +99,7 @@ func (d *Deployment) installService(project string, service *config.Service) err
 		return fmt.Errorf("install failed for %s: container is unhealthy: %w", container, err)
 	}
 
-	err := d.processPreHooks(service, container)
+	err := d.processPreHooks(project, service)
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", container, err)
 	}
 
-	err := d.processPreHooks(service, container+newContainerSuffix)
+	err := d.processPreHooks(project, service)
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 	return nil
 }
 
-func (d *Deployment) processPreHooks(service *config.Service, container string) error {
+func (d *Deployment) processPreHooks(project string, service *config.Service) error {
 	if service.Hooks == nil || service.Hooks.Pre == nil {
 		return nil
 	}
@@ -165,7 +165,23 @@ func (d *Deployment) processPreHooks(service *config.Service, container string) 
 			return fmt.Errorf("local pre-hook failed: %w", err)
 		}
 	}
+
 	if service.Hooks.Pre.Remote != "" {
+		runService := &config.Service{
+			Name:       service.Name,
+			Image:      service.Image,
+			Volumes:    service.Volumes,
+			Env:        service.Env,
+			Entrypoint: service.Entrypoint,
+			Command:    service.Hooks.Pre.Remote,
+			Container:  &config.Container{RunOnce: true},
+		}
+		err := d.createContainer(project, runService, "run")
+		if err != nil {
+			return err
+		}
+
+		container := containerName(project, service.Name, "run")
 		if err := d.runRemoteHook(context.Background(), container, service.Hooks.Pre.Remote); err != nil {
 			return fmt.Errorf("remote pre-hook failed: %w", err)
 		}

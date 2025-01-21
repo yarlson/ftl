@@ -69,6 +69,7 @@ type ServiceHealthCheck struct {
 type Container struct {
 	HealthCheck *ContainerHealthCheck `yaml:"health_check"`
 	ULimits     []ULimit              `yaml:"ulimits"`
+	RunOnce     bool                  `yaml:"run_once"`
 }
 
 type ULimit struct {

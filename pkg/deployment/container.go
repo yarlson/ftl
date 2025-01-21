@@ -139,7 +139,15 @@ func (d *Deployment) startContainer(container string) error {
 func (d *Deployment) createContainer(project string, service *config.Service, suffix string) error {
 	container := containerName(project, service.Name, suffix)
 
-	args := []string{"run", "-d", "--name", container, "--network", project, "--network-alias", service.Name + suffix, "--restart", "unless-stopped"}
+	args := []string{"run"}
+
+	if service.Container != nil && service.Container.RunOnce {
+		args = append(args, "--rm")
+	} else {
+		args = append(args, "--detach")
+	}
+
+	args = append(args, []string{"--name", container, "--network", project, "--network-alias", service.Name + suffix, "--restart", "unless-stopped"}...)
 
 	for _, value := range service.Env {
 		args = append(args, "-e", value)
