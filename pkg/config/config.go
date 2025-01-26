@@ -50,6 +50,7 @@ type Service struct {
 	Routes       []Route             `yaml:"routes" validate:"required,dive"`
 	Volumes      []string            `yaml:"volumes" validate:"dive,volume_reference"`
 	Command      string              `yaml:"command"`
+	CommandSlice []string            `yaml:"_"`
 	Entrypoint   []string            `yaml:"entrypoint"`
 	Env          []string            `yaml:"env"`
 	Forwards     []string            `yaml:"forwards"`

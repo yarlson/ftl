@@ -176,9 +176,15 @@ func (d *Deployment) createContainer(project string, service *config.Service, su
 			"--health-cmd", service.Container.HealthCheck.Cmd,
 			"--health-interval", service.Container.HealthCheck.Interval,
 			"--health-retries", fmt.Sprintf("%d", service.Container.HealthCheck.Retries),
-			"--health-timeout", service.Container.HealthCheck.Timeout,
-			"--health-start-period", service.Container.HealthCheck.StartPeriod,
-			"--health-start-timeout", service.Container.HealthCheck.StartTimeout,
+		}
+		if service.Container.HealthCheck.Timeout != "" {
+			healthCheckArgs = append(healthCheckArgs, "--health-timeout", service.Container.HealthCheck.Timeout)
+		}
+		if service.Container.HealthCheck.StartPeriod != "" {
+			healthCheckArgs = append(healthCheckArgs, "--health-start-period", service.Container.HealthCheck.StartPeriod)
+		}
+		if service.Container.HealthCheck.StartTimeout != "" {
+			healthCheckArgs = append(healthCheckArgs, "--health-start-timeout", service.Container.HealthCheck.StartTimeout)
 		}
 	}
 
@@ -212,6 +218,9 @@ func (d *Deployment) createContainer(project string, service *config.Service, su
 
 	if service.Command != "" {
 		args = append(args, service.Command)
+	}
+	if len(service.CommandSlice) > 0 {
+		args = append(args, service.CommandSlice...)
 	}
 
 	_, err = d.runCommand(context.Background(), "docker", args...)

@@ -22,18 +22,12 @@ func GenerateNginxConfig(cfg *config.Config) (string, error) {
 {{- end}}
 
 	server {
-		listen 80;
-		server_name {{.Project.Domain}};
-		return 301 https://$server_name$request_uri;
-	}
-
-	server {
 		listen 443 ssl;
 		http2 on;
 		server_name {{.Project.Domain}};
 
-		ssl_certificate /etc/nginx/ssl/{{.Project.Domain}}.crt;
-		ssl_certificate_key /etc/nginx/ssl/{{.Project.Domain}}.key;
+		ssl_certificate /etc/nginx/certs/{{.Project.Domain}}.crt;
+		ssl_certificate_key /etc/nginx/certs/{{.Project.Domain}}.key;
 		ssl_protocols TLSv1.2 TLSv1.3;
 		ssl_prefer_server_ciphers on;
 
