@@ -104,7 +104,7 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 func (d *Deployment) deployZero(project string, cfg *config.Config) error {
 	service := &config.Service{
 		Name:  "zero",
-		Image: "yarlson/zero:latest",
+		Image: "yarlson/zero:1",
 		Volumes: []string{
 			"certs:/certs",
 			"/var/run/docker.sock:/var/run/docker.sock",
