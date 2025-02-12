@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/yarlson/pin"
 
 	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/tunnel"
@@ -26,21 +28,20 @@ func init() {
 }
 
 func runTunnels(cmd *cobra.Command, args []string) {
-	sm := console.NewSpinnerManager()
-	sm.Start()
-	defer sm.Stop()
-
-	spinner := sm.AddSpinner("tunnels", "Establishing SSH tunnels")
+	pTunnel := pin.New("Establishing SSH tunnels", pin.WithSpinnerColor(pin.ColorCyan), pin.WithTextColor(pin.ColorYellow))
+	cancelTunnel := pTunnel.Start(context.Background())
 
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
-		spinner.ErrorWithMessagef("Failed to parse config file: %v", err)
+		pTunnel.Fail(fmt.Sprintf("Failed to parse config file: %v", err))
+		cancelTunnel()
 		return
 	}
 
 	tunnels := tunnel.CollectDependencyTunnels(cfg)
 	if len(tunnels) == 0 {
-		spinner.ErrorWithMessage("No dependencies with ports found in the configuration.")
+		pTunnel.Fail("No dependencies with ports found in the configuration.")
+		cancelTunnel()
 		return
 	}
 
@@ -55,13 +56,13 @@ func runTunnels(cmd *cobra.Command, args []string) {
 		tunnels,
 	)
 	if err != nil {
-		spinner.ErrorWithMessagef("Failed to establish tunnels: %v", err)
+		pTunnel.Fail(fmt.Sprintf("Failed to establish tunnels: %v", err))
+		cancelTunnel()
 		return
 	}
 
-	// If no error arrived in 2 seconds, we assume success (like the original):
-	spinner.Complete()
-	sm.Stop()
+	pTunnel.Stop("SSH tunnels established")
+	cancelTunnel()
 
 	console.Success("SSH tunnels established. Press Ctrl+C to exit.")
 

@@ -9,7 +9,6 @@ import (
 )
 
 func (d *Deployment) deployDependencies(ctx context.Context, project string, dependencies []config.Dependency) error {
-	hostname := d.runner.Host()
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(dependencies))
 
@@ -18,15 +17,11 @@ func (d *Deployment) deployDependencies(ctx context.Context, project string, dep
 		go func(dep config.Dependency) {
 			defer wg.Done()
 
-			spinner := d.sm.AddSpinner("dependency", fmt.Sprintf("[%s] Deploying dependency %s", hostname, dep.Name))
-
 			if err := d.startDependency(project, &dep); err != nil {
-				spinner.ErrorWithMessagef("Failed to deploy dependency %s: %v", dep.Name, err)
 				errChan <- fmt.Errorf("failed to deploy dependency %s: %w", dep.Name, err)
 				return
 			}
 
-			spinner.Complete()
 		}(dep)
 	}
 

@@ -10,7 +10,6 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/runner/remote"
 	"github.com/yarlson/ftl/pkg/ssh"
 )
@@ -22,66 +21,43 @@ type DockerCredentials struct {
 }
 
 // Setup performs the server setup
-func Setup(ctx context.Context, cfg *config.Config, dockerCreds DockerCredentials, newUserPassword string, sm *console.SpinnerManager) error {
-	spinner := sm.AddSpinner("setup", fmt.Sprintf("[%s] Setting up server", cfg.Server.Host))
-	if err := setupServer(ctx, cfg.Server, dockerCreds, newUserPassword, sm); err != nil {
-		spinner.ErrorWithMessagef("Setup failed: %v", err)
+func Setup(ctx context.Context, cfg *config.Config, dockerCreds DockerCredentials, newUserPassword string) error {
+	if err := setupServer(ctx, cfg.Server, dockerCreds, newUserPassword); err != nil {
 		return fmt.Errorf("[%s] Setup failed: %w", cfg.Server.Host, err)
 	}
-	spinner.Complete()
 	return nil
 }
 
-func setupServer(ctx context.Context, cfg config.Server, dockerCreds DockerCredentials, newUserPassword string, sm *console.SpinnerManager) error {
-	spinner := sm.AddSpinner("connecting", fmt.Sprintf("[%s] Connecting to server", cfg.Host))
-
+func setupServer(ctx context.Context, cfg config.Server, dockerCreds DockerCredentials, newUserPassword string) error {
 	sshClient, rootKey, err := ssh.FindKeyAndConnectWithUser(cfg.Host, cfg.Port, "root", cfg.SSHKey)
 	if err != nil {
-		spinner.ErrorWithMessagef("Failed to connect via SSH: %v", err)
 		return fmt.Errorf("failed to connect via SSH: %w", err)
 	}
 	defer sshClient.Close()
 
-	spinner.Complete()
-
 	runner := remote.NewRunner(sshClient)
 	cfg.RootSSHKey = string(rootKey)
 
-	spinner = sm.AddSpinner("software", fmt.Sprintf("[%s] Installing software", cfg.Host))
 	if err := installSoftware(ctx, runner); err != nil {
-		spinner.ErrorWithMessagef("Failed to install software: %v", err)
 		return fmt.Errorf("installing software: %w", err)
 	}
-	spinner.Complete()
 
-	spinner = sm.AddSpinner("firewall", fmt.Sprintf("[%s] Configuring firewall", cfg.Host))
 	if err := configureFirewall(ctx, runner); err != nil {
-		spinner.ErrorWithMessagef("Failed to configure firewall: %v", err)
 		return fmt.Errorf("configuring firewall: %w", err)
 	}
-	spinner.Complete()
 
-	spinner = sm.AddSpinner("user", fmt.Sprintf("[%s] Creating user %s", cfg.Host, cfg.User))
 	if err := createUser(ctx, runner, cfg.User, newUserPassword); err != nil {
-		spinner.ErrorWithMessagef("Failed to create user: %v", err)
 		return fmt.Errorf("creating user: %w", err)
 	}
-	spinner.Complete()
 
-	spinner = sm.AddSpinner("sshkey", fmt.Sprintf("[%s] Setting up SSH key", cfg.Host))
 	if err := setupSSHKey(ctx, runner, cfg); err != nil {
-		spinner.ErrorWithMessagef("Failed to setup SSH key: %v", err)
 		return fmt.Errorf("setting up SSH key: %w", err)
 	}
-	spinner.Complete()
 
 	if dockerCreds.Username != "" && dockerCreds.Password != "" {
-		spinner = sm.AddSpinner("docker", fmt.Sprintf("[%s] Logging into Docker Hub", cfg.Host))
 		if err := dockerLogin(ctx, runner, dockerCreds); err != nil {
-			spinner.ErrorWithMessagef("Failed to login to Docker: %v", err)
 			return fmt.Errorf("docker login: %w", err)
 		}
-		spinner.Complete()
 	}
 
 	return nil

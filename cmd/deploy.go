@@ -36,16 +36,11 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	sm := console.NewSpinnerManager()
-	sm.Start()
-
-	if err := deployToServer(cfg.Project.Name, cfg, cfg.Server, sm); err != nil {
-		sm.Stop()
+	if err := deployToServer(cfg.Project.Name, cfg, cfg.Server); err != nil {
 		console.Error("Deployment failed:", err)
 		return
 	}
 
-	sm.Stop()
 	console.Success("Deployment completed successfully")
 }
 
@@ -63,24 +58,19 @@ func parseConfig(filename string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func deployToServer(project string, cfg *config.Config, server config.Server, sm *console.SpinnerManager) error {
+func deployToServer(project string, cfg *config.Config, server config.Server) error {
 	hostname := server.Host
 
 	// Connect to server
-	spinner := sm.AddSpinner(fmt.Sprintf("connect-%s", hostname), fmt.Sprintf("[%s] Connecting to server", hostname))
 	runner, err := connectToServer(server)
 	if err != nil {
-		spinner.ErrorWithMessagef("Failed to connect to server %s: %v", hostname, err)
 		return fmt.Errorf("failed to connect to server %s: %w", hostname, err)
 	}
 	defer runner.Close()
-	spinner.Complete()
 
 	// Create temp directory for docker sync
-	spinner = sm.AddSpinner(fmt.Sprintf("setup-%s", hostname), fmt.Sprintf("[%s] Setting up deployment", hostname))
 	localStore, err := os.MkdirTemp("", "dockersync-local")
 	if err != nil {
-		spinner.ErrorWithMessagef("Failed to create local store: %v", err)
 		return fmt.Errorf("failed to create local store: %w", err)
 	}
 
@@ -89,8 +79,7 @@ func deployToServer(project string, cfg *config.Config, server config.Server, sm
 		LocalStore:  localStore,
 		MaxParallel: 1,
 	}, runner)
-	deploy := deployment.NewDeployment(runner, syncer, sm)
-	spinner.Complete()
+	deploy := deployment.NewDeployment(runner, syncer)
 
 	// Start deployment
 	ctx, cancel := context.WithCancel(context.Background())

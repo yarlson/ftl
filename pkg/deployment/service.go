@@ -11,7 +11,6 @@ import (
 )
 
 func (d *Deployment) deployServices(ctx context.Context, project string, services []config.Service) error {
-	hostname := d.runner.Host()
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(services))
 
@@ -20,15 +19,10 @@ func (d *Deployment) deployServices(ctx context.Context, project string, service
 		go func(service config.Service) {
 			defer wg.Done()
 
-			spinner := d.sm.AddSpinner(service.Name, fmt.Sprintf("[%s] Deploying service %s", hostname, service.Name))
-
 			if err := d.deployService(project, &service); err != nil {
-				spinner.ErrorWithMessagef("Failed to deploy service %s: %v", service.Name, err)
 				errChan <- fmt.Errorf("failed to deploy service %s: %w", service.Name, err)
 				return
 			}
-
-			spinner.Complete()
 		}(service)
 	}
 

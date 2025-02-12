@@ -10,7 +10,6 @@ import (
 	"github.com/yarlson/ftl/pkg/runner/local"
 
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/console"
 )
 
 const (
@@ -32,23 +31,17 @@ type Deployment struct {
 	runner      Runner
 	localRunner *local.Runner
 	syncer      ImageSyncer
-	sm          *console.SpinnerManager
 }
 
-func NewDeployment(runner Runner, syncer ImageSyncer, sm *console.SpinnerManager) *Deployment {
-	return &Deployment{runner: runner, syncer: syncer, sm: sm, localRunner: local.NewRunner()}
+func NewDeployment(runner Runner, syncer ImageSyncer) *Deployment {
+	return &Deployment{runner: runner, syncer: syncer, localRunner: local.NewRunner()}
 }
 
 func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Config) error {
-	hostname := d.runner.Host()
-
 	// Create project network
-	spinner := d.sm.AddSpinner("network", fmt.Sprintf("[%s] Creating network...", hostname))
 	if err := d.createNetwork(project); err != nil {
-		spinner.Error()
 		return fmt.Errorf("failed to create network: %w", err)
 	}
-	spinner.Complete()
 
 	// Create volumes
 	cfg.Volumes = append(cfg.Volumes, "certs")

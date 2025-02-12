@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/yarlson/pin"
 
 	"github.com/yarlson/ftl/pkg/config"
 	"github.com/yarlson/ftl/pkg/console"
@@ -26,30 +27,28 @@ func init() {
 }
 
 func runSetup(cmd *cobra.Command, args []string) {
-	sm := console.NewSpinnerManager()
-	sm.Start()
-	defer sm.Stop()
-
-	spinner := sm.AddSpinner("config", "Parsing configuration")
-
+	pConfig := pin.New("Parsing configuration", pin.WithSpinnerColor(pin.ColorCyan))
+	cancelConfig := pConfig.Start(context.Background())
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
-		spinner.ErrorWithMessagef("Failed to parse config file: %v", err)
+		pConfig.Fail(fmt.Sprintf("Failed to parse config file: %v", err))
+		cancelConfig()
 		return
 	}
-	spinner.Complete()
+	pConfig.Stop("Configuration parsed")
+	cancelConfig()
 
-	// Get Docker credentials if needed
-	spinner = sm.AddSpinner("docker", "Checking Docker credentials")
+	pDocker := pin.New("Checking Docker credentials", pin.WithSpinnerColor(pin.ColorCyan))
+	cancelDocker := pDocker.Start(context.Background())
 	dockerCreds, err := getDockerCredentials(cfg.Services)
 	if err != nil {
-		spinner.ErrorWithMessagef("Failed to get Docker credentials: %v", err)
+		pDocker.Fail(fmt.Sprintf("Failed to get Docker credentials: %v", err))
+		cancelDocker()
 		return
 	}
-	spinner.Complete()
-	sm.Stop()
+	pDocker.Stop("Docker credentials obtained")
+	cancelDocker()
 
-	// Get user password
 	newUserPassword, err := getUserPassword()
 	if err != nil {
 		console.Error("Failed to read password:", err)
@@ -58,24 +57,20 @@ func runSetup(cmd *cobra.Command, args []string) {
 	console.ClearPreviousLine()
 	console.Success("Password set successfully")
 
-	sm = console.NewSpinnerManager()
-	sm.Start()
-	defer sm.Stop()
-
-	// Start server setup
+	pSetup := pin.New("Setting up server", pin.WithSpinnerColor(pin.ColorCyan))
+	cancelSetup := pSetup.Start(context.Background())
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-
 	if err := server.Setup(ctx, cfg, server.DockerCredentials{
 		Username: dockerCreds.Username,
 		Password: dockerCreds.Password,
-	}, newUserPassword, sm); err != nil {
-		sm.Stop()
-		console.Error("Setup failed:", err)
+	}, newUserPassword); err != nil {
+		pSetup.Fail(fmt.Sprintf("Setup failed: %v", err))
+		cancelSetup()
 		return
 	}
-
-	sm.Stop()
+	pSetup.Stop("Server setup completed successfully")
+	cancelSetup()
 
 	console.Success("Server setup completed successfully.")
 }

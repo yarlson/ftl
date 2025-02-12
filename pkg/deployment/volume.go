@@ -6,17 +6,10 @@ import (
 )
 
 func (d *Deployment) createVolumes(ctx context.Context, project string, volumes []string) error {
-	hostname := d.runner.Host()
-
 	for _, volume := range volumes {
-		spinner := d.sm.AddSpinner("volume", fmt.Sprintf("[%s] Creating volume %s", hostname, volume))
-
 		if err := d.createVolume(ctx, project, volume); err != nil {
-			spinner.ErrorWithMessagef("Failed to create volume %s: %v", volume, err)
 			return fmt.Errorf("failed to create volume %s: %w", volume, err)
 		}
-
-		spinner.Complete()
 	}
 
 	return nil

@@ -11,8 +11,6 @@ import (
 )
 
 func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config.Config) error {
-	hostname := d.runner.Host()
-
 	// Prepare project folder
 	projectPath, err := d.prepareProjectFolder(project)
 	if err != nil {
@@ -20,22 +18,15 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 	}
 
 	// Prepare nginx config
-	spinner := d.sm.AddSpinner("config", fmt.Sprintf("[%s] Preparing Nginx configuration", hostname))
 	configPath, err := d.prepareNginxConfig(cfg, projectPath)
 	if err != nil {
-		spinner.Error()
 		return fmt.Errorf("failed to prepare nginx config: %w", err)
 	}
-	spinner.Complete()
 
-	spinner = d.sm.AddSpinner("zero", fmt.Sprintf("[%s] Deploying Zero certificate manager", hostname))
 	if err := d.deployZero(project, cfg); err != nil {
-		spinner.Error()
 		return fmt.Errorf("failed to deploy Zero certificate manager: %w", err)
 	}
-	spinner.Complete()
 
-	spinner = d.sm.AddSpinner("proxy", fmt.Sprintf("[%s] Deploying proxy service", hostname))
 	service := &config.Service{
 		Name:  "proxy",
 		Image: "nginx:alpine",
@@ -58,10 +49,8 @@ func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config
 	}
 
 	if err := d.deployService(project, service); err != nil {
-		spinner.Error()
 		return fmt.Errorf("failed to deploy proxy service: %w", err)
 	}
-	spinner.Complete()
 
 	return nil
 }

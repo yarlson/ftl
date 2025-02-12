@@ -16,7 +16,6 @@ import (
 
 	"github.com/stretchr/testify/suite"
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/runner/remote"
 	"github.com/yarlson/ftl/pkg/ssh"
 	"github.com/yarlson/ftl/tests/dockercontainer"
@@ -28,7 +27,6 @@ type DeploymentTestSuite struct {
 	deployment *Deployment
 	network    string
 	tc         *dockercontainer.Container
-	sm         *console.SpinnerManager
 }
 
 func TestDeploymentSuite(t *testing.T) {
@@ -50,8 +48,7 @@ func (suite *DeploymentTestSuite) SetupTest() {
 	suite.T().Log("Creating runner and spinner manager...")
 	runner := remote.NewRunner(sshClient)
 	suite.runner = runner
-	suite.sm = console.NewSpinnerManager()
-	suite.deployment = NewDeployment(runner, nil, suite.sm)
+	suite.deployment = NewDeployment(runner, nil)
 }
 
 func (suite *DeploymentTestSuite) TearDownTest() {

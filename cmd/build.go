@@ -42,24 +42,19 @@ func runBuild(cmd *cobra.Command, args []string) {
 
 	runner := local.NewRunner()
 	builder := build.NewBuild(runner)
-	sm := console.NewSpinnerManager()
 
 	ctx := context.Background()
 
-	if err := buildAndPushServices(ctx, cfg.Project.Name, cfg.Services, builder, skipPush, sm); err != nil {
+	if err := buildAndPushServices(ctx, cfg.Project.Name, cfg.Services, builder, skipPush); err != nil {
 		console.Error("Build process failed:", err)
 		return
 	}
 }
 
 // buildAndPushServices builds and pushes all services concurrently.
-func buildAndPushServices(ctx context.Context, project string, services []config.Service, builder *build.Build, skipPush bool, sm *console.SpinnerManager) error {
+func buildAndPushServices(ctx context.Context, project string, services []config.Service, builder *build.Build, skipPush bool) error {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(services))
-
-	// Start the spinner manager
-	sm.Start()
-	defer sm.Stop()
 
 	for _, svc := range services {
 		wg.Add(1)
@@ -71,32 +66,22 @@ func buildAndPushServices(ctx context.Context, project string, services []config
 				image = fmt.Sprintf("%s-%s", project, serviceName)
 			}
 
-			// Create build spinner
-			spinner := sm.AddSpinner(fmt.Sprintf("build-%s", serviceName), fmt.Sprintf("Building service %s", serviceName))
-
 			// Build service
 			if err := builder.Build(ctx, image, svc.Path); err != nil {
-				spinner.ErrorWithMessagef("Failed to build service %s: %v", serviceName, err)
 				errChan <- fmt.Errorf("failed to build service %s: %w", serviceName, err)
 				return
 			}
-			spinner.Complete()
 
 			// Skip push if requested or if using local image
 			if skipPush || svc.Image == "" {
 				return
 			}
 
-			// Create push spinner
-			spinner = sm.AddSpinner(fmt.Sprintf("push-%s", serviceName), fmt.Sprintf("Pushing service %s", serviceName))
-
 			// Push service
 			if err := builder.Push(ctx, svc.Image); err != nil {
-				spinner.ErrorWithMessagef("Failed to push service %s: %v", serviceName, err)
 				errChan <- fmt.Errorf("failed to push service %s: %w", serviceName, err)
 				return
 			}
-			spinner.Complete()
 		}(svc)
 	}
 
