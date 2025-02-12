@@ -9,19 +9,42 @@ import (
 	"golang.org/x/term"
 )
 
-var (
-	colorReset  = "\033[0m"
-	colorRed    = "\033[91m" // Bright Red
-	colorGreen  = "\033[92m" // Bright Green
-	colorYellow = "\033[93m" // Bright Yellow
+// Color represents an ANSI color code.
+type Color int
+
+// Available colors.
+const (
+	ColorReset Color = iota
+	ColorRed
+	ColorGreen
+	ColorYellow
 )
+
+var disableColor bool
+
+// String returns the ANSI escape code for the given color.
+// If colors are disabled, it returns an empty string.
+func (c Color) String() string {
+	if disableColor {
+		return ""
+	}
+	switch c {
+	case ColorReset:
+		return "\033[0m"
+	case ColorRed:
+		return "\033[91m"
+	case ColorGreen:
+		return "\033[92m"
+	case ColorYellow:
+		return "\033[93m"
+	default:
+		return ""
+	}
+}
 
 func init() {
 	if _, exists := os.LookupEnv("NO_COLOR"); exists {
-		colorReset = ""
-		colorRed = ""
-		colorGreen = ""
-		colorYellow = ""
+		disableColor = true
 	}
 }
 
@@ -34,25 +57,25 @@ func Info(a ...interface{}) {
 // Success prints a success message.
 func Success(a ...interface{}) {
 	message := fmt.Sprint(a...)
-	fmt.Printf("%s✓%s %s\n", colorGreen, colorReset, message)
+	fmt.Printf("%s✓%s %s\n", ColorGreen, ColorReset, message)
 }
 
 // Warning prints a warning message.
 func Warning(a ...interface{}) {
 	message := fmt.Sprint(a...)
-	fmt.Printf("%s!%s %s\n", colorYellow, colorReset, message)
+	fmt.Printf("%s!%s %s\n", ColorYellow, ColorReset, message)
 }
 
 // Error prints an error message with a newline.
 func Error(a ...interface{}) {
 	message := fmt.Sprint(a...)
-	fmt.Printf("%s✘%s %s\n", colorRed, colorReset, message)
+	fmt.Printf("%s✘%s %s\n", ColorRed, ColorReset, message)
 }
 
 // Input prints an input prompt.
 func Input(a ...interface{}) {
 	message := fmt.Sprint(a...)
-	fmt.Printf("%s%s%s", colorYellow, message, colorReset)
+	fmt.Printf("%s%s%s", ColorYellow, message, ColorReset)
 }
 
 // ReadLine reads a line from standard input.
@@ -78,14 +101,4 @@ func ReadPassword() (string, error) {
 // Print prints a message to the console.
 func Print(a ...interface{}) {
 	fmt.Println(a...)
-}
-
-// Reset ensures the cursor is visible and terminal is in a normal state.
-func Reset() {
-	_ = os.Stdout.Sync()
-	fmt.Print("\033[?25h")
-}
-
-func ClearPreviousLine() {
-	fmt.Print("\033[1A\033[K")
 }

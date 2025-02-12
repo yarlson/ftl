@@ -156,7 +156,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		defer cancel()
 
 		// Initial deployment
-		err := suite.deployment.Deploy(ctx, project, cfg)
+		err := suite.deployment.Deploy(ctx, project, cfg, nil)
 		suite.Require().NoError(err, "Initial deployment should succeed")
 
 		time.Sleep(5 * time.Second)
@@ -203,7 +203,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		cfg.Services[0].Image = "nginx:1.20"
 		suite.T().Logf("Updating service image to nginx:1.20")
 
-		err = suite.deployment.Deploy(ctx, project, cfg)
+		err = suite.deployment.Deploy(ctx, project, cfg, nil)
 		suite.Require().NoError(err, "Service update should succeed")
 
 		time.Sleep(2 * time.Second)

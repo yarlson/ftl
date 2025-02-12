@@ -28,6 +28,7 @@ func init() {
 
 func runSetup(cmd *cobra.Command, args []string) {
 	pConfig := pin.New("Parsing configuration", pin.WithSpinnerColor(pin.ColorCyan))
+	pConfig.Start(context.Background())
 	cancelConfig := pConfig.Start(context.Background())
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
@@ -39,6 +40,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 	cancelConfig()
 
 	pDocker := pin.New("Checking Docker credentials", pin.WithSpinnerColor(pin.ColorCyan))
+	pDocker.Start(context.Background())
 	cancelDocker := pDocker.Start(context.Background())
 	dockerCreds, err := getDockerCredentials(cfg.Services)
 	if err != nil {
@@ -54,17 +56,17 @@ func runSetup(cmd *cobra.Command, args []string) {
 		console.Error("Failed to read password:", err)
 		return
 	}
-	console.ClearPreviousLine()
 	console.Success("Password set successfully")
 
 	pSetup := pin.New("Setting up server", pin.WithSpinnerColor(pin.ColorCyan))
+	pSetup.Start(context.Background())
 	cancelSetup := pSetup.Start(context.Background())
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	if err := server.Setup(ctx, cfg, server.DockerCredentials{
 		Username: dockerCreds.Username,
 		Password: dockerCreds.Password,
-	}, newUserPassword); err != nil {
+	}, newUserPassword, pSetup); err != nil {
 		pSetup.Fail(fmt.Sprintf("Setup failed: %v", err))
 		cancelSetup()
 		return

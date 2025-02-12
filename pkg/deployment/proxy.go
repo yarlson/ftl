@@ -3,11 +3,12 @@ package deployment
 import (
 	"context"
 	"fmt"
-	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/proxy"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/proxy"
 )
 
 func (d *Deployment) startProxy(ctx context.Context, project string, cfg *config.Config) error {

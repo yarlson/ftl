@@ -6,10 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/yarlson/pin"
+
 	"github.com/spf13/cobra"
 
 	"github.com/yarlson/ftl/pkg/config"
-	"github.com/yarlson/ftl/pkg/console"
 	"github.com/yarlson/ftl/pkg/deployment"
 	"github.com/yarlson/ftl/pkg/imagesync"
 	"github.com/yarlson/ftl/pkg/runner/remote"
@@ -30,18 +31,22 @@ func init() {
 }
 
 func runDeploy(cmd *cobra.Command, args []string) {
+	pDeploy := pin.New("Deploying", pin.WithSpinnerColor(pin.ColorCyan))
+	cancelDeploy := pDeploy.Start(context.Background())
+	defer cancelDeploy()
+
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
-		console.Error("Failed to parse config file:", err)
+		pDeploy.Fail(fmt.Sprintf("Failed to parse config file: %v", err))
 		return
 	}
 
-	if err := deployToServer(cfg.Project.Name, cfg, cfg.Server); err != nil {
-		console.Error("Deployment failed:", err)
+	if err := deployToServer(cfg.Project.Name, cfg, cfg.Server, pDeploy); err != nil {
+		pDeploy.Fail(fmt.Sprintf("Deployment failed: %v", err))
 		return
 	}
 
-	console.Success("Deployment completed successfully")
+	pDeploy.Stop("Deployment completed successfully")
 }
 
 func parseConfig(filename string) (*config.Config, error) {
@@ -58,9 +63,10 @@ func parseConfig(filename string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func deployToServer(project string, cfg *config.Config, server config.Server) error {
+func deployToServer(project string, cfg *config.Config, server config.Server, spinner *pin.Pin) error {
 	hostname := server.Host
 
+	spinner.UpdateMessage("Connecting to server " + hostname + "...")
 	// Connect to server
 	runner, err := connectToServer(server)
 	if err != nil {
@@ -68,12 +74,14 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 	}
 	defer runner.Close()
 
+	spinner.UpdateMessage("Connected to server " + hostname + ". Creating temporary directory for docker sync...")
 	// Create temp directory for docker sync
 	localStore, err := os.MkdirTemp("", "dockersync-local")
 	if err != nil {
 		return fmt.Errorf("failed to create local store: %w", err)
 	}
 
+	spinner.UpdateMessage("Temporary directory created. Initializing image syncer and deployment...")
 	// Initialize image syncer and deployment
 	syncer := imagesync.NewImageSync(imagesync.Config{
 		LocalStore:  localStore,
@@ -85,7 +93,8 @@ func deployToServer(project string, cfg *config.Config, server config.Server) er
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := deploy.Deploy(ctx, project, cfg); err != nil {
+	spinner.UpdateMessage("Starting deployment process...")
+	if err := deploy.Deploy(ctx, project, cfg, spinner); err != nil {
 		return err
 	}
 

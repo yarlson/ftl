@@ -10,6 +10,7 @@ import (
 	"github.com/yarlson/ftl/pkg/runner/local"
 
 	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/pin"
 )
 
 const (
@@ -37,18 +38,21 @@ func NewDeployment(runner Runner, syncer ImageSyncer) *Deployment {
 	return &Deployment{runner: runner, syncer: syncer, localRunner: local.NewRunner()}
 }
 
-func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Config) error {
+func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Config, spinner *pin.Pin) error {
+	spinner.UpdateMessage("Creating project network...")
 	// Create project network
 	if err := d.createNetwork(project); err != nil {
 		return fmt.Errorf("failed to create network: %w", err)
 	}
 
+	spinner.UpdateMessage("Creating volumes...")
 	// Create volumes
 	cfg.Volumes = append(cfg.Volumes, "certs")
 	if err := d.createVolumes(ctx, project, cfg.Volumes); err != nil {
 		return fmt.Errorf("failed to create volumes: %w", err)
 	}
 
+	spinner.UpdateMessage("Deploying dependencies...")
 	// Deploy dependencies
 	if err := d.deployDependencies(ctx, project, cfg.Dependencies); err != nil {
 		return fmt.Errorf("failed to deploy dependencies: %w", err)
@@ -59,11 +63,13 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 	defer tunnelCancel()
 
 	if hasLocalHooks(cfg) {
+		spinner.UpdateMessage("Starting tunnels for local hooks...")
 		if err := d.startTunnels(tunnelCtx, cfg); err != nil {
 			return fmt.Errorf("failed to start tunnels: %w", err)
 		}
 	}
 
+	spinner.UpdateMessage("Deploying services...")
 	// Deploy services
 	if err := d.deployServices(ctx, project, cfg.Services); err != nil {
 		return fmt.Errorf("failed to deploy services: %w", err)
@@ -71,6 +77,7 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 
 	tunnelCancel()
 
+	spinner.UpdateMessage("Starting proxy configuration...")
 	// Setup proxy
 	if err := d.startProxy(ctx, project, cfg); err != nil {
 		return fmt.Errorf("failed to start proxy: %w", err)
