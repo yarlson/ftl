@@ -8,3 +8,5 @@ ftl
 ftl.yaml
 .env
 /.changelog/
+refactoring-spec.md
+repomix-output.txt

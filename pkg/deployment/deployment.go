@@ -135,3 +135,22 @@ func (d *Deployment) projectFolder(projectName string) (string, error) {
 
 	return projectPath, nil
 }
+
+// Deploy orchestrates the deployment of services and dependencies
+func Deploy(ctx context.Context, project string, cfg *config.Config) error {
+	// TODO: implement
+	// Steps:
+	// 1. Validate configuration
+	// 2. Create networks
+	// 3. Create volumes
+	// 4. Deploy dependencies
+	// 5. Deploy services
+	// 6. Deploy proxy
+	return nil
+}
+
+// SwitchTraffic performs zero-downtime traffic switching for a service
+func SwitchTraffic(ctx context.Context, project, service string) (oldContainerID string, err error) {
+	// TODO: implement
+	return "", nil
+}
