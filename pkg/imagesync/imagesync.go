@@ -255,7 +255,10 @@ func extractTar(ctx context.Context, tarPath, destPath string) error {
 			return fmt.Errorf("tar reading error: %w", err)
 		}
 
-		target := filepath.Join(destPath, header.Name)
+		target, err := sanitizeExtractPath(destPath, header.Name)
+		if err != nil {
+			return fmt.Errorf("invalid file path: %w", err)
+		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -272,6 +275,27 @@ func extractTar(ctx context.Context, tarPath, destPath string) error {
 	}
 
 	return nil
+}
+
+func sanitizeExtractPath(destPath, filePath string) (string, error) {
+	// Get the absolute path of the destination directory
+	absDestPath, err := filepath.Abs(destPath)
+	if err != nil {
+		return "", err
+	}
+
+	// Get the absolute path of the target file
+	absTargetPath, err := filepath.Abs(filepath.Join(destPath, filePath))
+	if err != nil {
+		return "", err
+	}
+
+	// Ensure the target path is within the destination directory
+	if !strings.HasPrefix(absTargetPath, absDestPath) {
+		return "", fmt.Errorf("file path %s is outside of the destination directory", filePath)
+	}
+
+	return absTargetPath, nil
 }
 
 func extractFile(tr *tar.Reader, target string) error {
