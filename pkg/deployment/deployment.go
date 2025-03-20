@@ -10,12 +10,17 @@ import (
 	"github.com/yarlson/ftl/pkg/runner/local"
 
 	"github.com/yarlson/ftl/pkg/config"
+	"github.com/yarlson/ftl/pkg/docker"
 	"github.com/yarlson/pin"
 )
 
 const (
 	newContainerSuffix = "_new"
 )
+
+func containerName(project, service, suffix string) string {
+	return fmt.Sprintf("%s-%s%s", project, service, suffix)
+}
 
 type Runner interface {
 	CopyFile(ctx context.Context, from, to string) error
@@ -29,19 +34,25 @@ type ImageSyncer interface {
 }
 
 type Deployment struct {
-	runner      Runner
-	localRunner *local.Runner
-	syncer      ImageSyncer
+	runner        Runner
+	localRunner   *local.Runner
+	syncer        ImageSyncer
+	dockerManager *docker.DockerManager
 }
 
 func NewDeployment(runner Runner, syncer ImageSyncer) *Deployment {
-	return &Deployment{runner: runner, syncer: syncer, localRunner: local.NewRunner()}
+	return &Deployment{
+		runner:        runner,
+		syncer:        syncer,
+		localRunner:   local.NewRunner(),
+		dockerManager: docker.NewDockerManager(runner),
+	}
 }
 
 func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Config, spinner *pin.Pin) error {
 	spinner.UpdateMessage("Creating project network...")
 	// Create project network
-	if err := d.createNetwork(project); err != nil {
+	if err := d.dockerManager.EnsureNetwork(project); err != nil {
 		return fmt.Errorf("failed to create network: %w", err)
 	}
 
@@ -136,21 +147,24 @@ func (d *Deployment) projectFolder(projectName string) (string, error) {
 	return projectPath, nil
 }
 
-// Deploy orchestrates the deployment of services and dependencies
-func Deploy(ctx context.Context, project string, cfg *config.Config) error {
-	// TODO: implement
-	// Steps:
-	// 1. Validate configuration
-	// 2. Create networks
-	// 3. Create volumes
-	// 4. Deploy dependencies
-	// 5. Deploy services
-	// 6. Deploy proxy
-	return nil
+func (d *Deployment) updateImage(project string, service *config.Service) error {
+	if service.Image == "" {
+		updated, err := d.syncer.Sync(context.Background(), fmt.Sprintf("%s-%s", project, service.Name))
+		if err != nil {
+			return err
+		}
+		service.ImageUpdated = updated
+	}
+
+	return d.dockerManager.PullImage(service.Image)
 }
 
-// SwitchTraffic performs zero-downtime traffic switching for a service
-func SwitchTraffic(ctx context.Context, project, service string) (oldContainerID string, err error) {
-	// TODO: implement
-	return "", nil
+func (d *Deployment) createVolumes(ctx context.Context, project string, volumes []string) error {
+	for _, volume := range volumes {
+		if err := d.dockerManager.CreateVolume(ctx, project, volume); err != nil {
+			return fmt.Errorf("failed to create volume %s: %w", volume, err)
+		}
+	}
+
+	return nil
 }

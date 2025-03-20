@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"fmt"
+	"github.com/yarlson/ftl/pkg/docker"
 	"strings"
 	"sync"
 	"time"
@@ -47,19 +48,19 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 		return err
 	}
 
-	containerStatus, err := d.getContainerStatus(project, service.Name)
+	containerStatus, err := d.dockerManager.GetContainerStatus(project, service.Name)
 	if err != nil {
 		return err
 	}
 
-	if containerStatus == ContainerStatusNotFound {
+	if containerStatus == docker.ContainerStatusNotFound {
 		if err := d.installService(project, service); err != nil {
 			return fmt.Errorf("failed to install service %s: %w", service.Name, err)
 		}
 		return nil
 	}
 
-	containerShouldBeUpdated, err := d.containerShouldBeUpdated(project, service)
+	containerShouldBeUpdated, err := d.dockerManager.ContainerNeedsUpdate(project, service)
 	if err != nil {
 		return err
 	}
@@ -71,9 +72,9 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 		return nil
 	}
 
-	if containerStatus == ContainerStatusStopped {
+	if containerStatus == docker.ContainerStatusStopped {
 		container := containerName(project, service.Name, "")
-		if err := d.startContainer(container); err != nil {
+		if err := d.dockerManager.StartContainer(container); err != nil {
 			return fmt.Errorf("failed to start container %s: %w", service.Name, err)
 		}
 		return nil
@@ -83,13 +84,13 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 }
 
 func (d *Deployment) installService(project string, service *config.Service) error {
-	if err := d.createContainer(project, service, ""); err != nil {
+	if err := d.dockerManager.CreateAndRunContainer(project, service, ""); err != nil {
 		return fmt.Errorf("failed to start container for %s: %v", service.Image, err)
 	}
 
 	container := containerName(project, service.Name, "")
 
-	if err := d.performHealthChecks(container, service.HealthCheck); err != nil {
+	if err := d.dockerManager.CheckContainerHealth(container, service.HealthCheck); err != nil {
 		return fmt.Errorf("install failed for %s: container is unhealthy: %w", container, err)
 	}
 
@@ -116,11 +117,11 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 		return nil
 	}
 
-	if err := d.createContainer(project, service, newContainerSuffix); err != nil {
+	if err := d.dockerManager.CreateAndRunContainer(project, service, newContainerSuffix); err != nil {
 		return fmt.Errorf("failed to start new container for %s: %v", container, err)
 	}
 
-	if err := d.performHealthChecks(container+newContainerSuffix, service.HealthCheck); err != nil {
+	if err := d.dockerManager.CheckContainerHealth(container+newContainerSuffix, service.HealthCheck); err != nil {
 		if _, err := d.runCommand(context.Background(), "docker", "rm", "-f", container+newContainerSuffix); err != nil {
 			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", container, err)
 		}
@@ -170,7 +171,7 @@ func (d *Deployment) processPreHooks(project string, service *config.Service) er
 			Command:    service.Hooks.Pre.Remote,
 			Container:  &config.Container{RunOnce: true},
 		}
-		err := d.createContainer(project, runService, "run")
+		err := d.dockerManager.CreateAndRunContainer(project, runService, "run")
 		if err != nil {
 			return err
 		}
@@ -204,7 +205,7 @@ func (d *Deployment) processPostHooks(service *config.Service, container string)
 }
 
 func (d *Deployment) recreateService(project string, service *config.Service) error {
-	oldContID, err := d.getContainerID(project, service.Name)
+	oldContID, err := d.dockerManager.GetContainerID(project, service.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get container ID for %s: %v", service.Name, err)
 	}
@@ -217,11 +218,11 @@ func (d *Deployment) recreateService(project string, service *config.Service) er
 		return fmt.Errorf("failed to remove old container for %s: %v", service.Name, err)
 	}
 
-	if err := d.createContainer(project, service, ""); err != nil {
+	if err := d.dockerManager.CreateAndRunContainer(project, service, ""); err != nil {
 		return fmt.Errorf("failed to start new container for %s: %v", service.Name, err)
 	}
 
-	if err := d.performHealthChecks(service.Name, service.HealthCheck); err != nil {
+	if err := d.dockerManager.CheckContainerHealth(service.Name, service.HealthCheck); err != nil {
 		if _, rmErr := d.runCommand(context.Background(), "docker", "rm", "-f", service.Name); rmErr != nil {
 			return fmt.Errorf("recreation failed for %s: new container is unhealthy and cleanup failed: %v (original error: %w)", service.Name, rmErr, err)
 		}
@@ -233,7 +234,7 @@ func (d *Deployment) recreateService(project string, service *config.Service) er
 
 func (d *Deployment) switchTraffic(project, service string) (string, error) {
 	newContainer := containerName(project, service, newContainerSuffix)
-	oldContainer, err := d.getContainerID(project, service)
+	oldContainer, err := d.dockerManager.GetContainerID(project, service)
 	if err != nil {
 		return "", fmt.Errorf("failed to get old container ID: %v", err)
 	}
