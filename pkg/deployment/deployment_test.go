@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/yarlson/pin"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -156,7 +157,8 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		defer cancel()
 
 		// Initial deployment
-		err := suite.deployment.Deploy(ctx, project, cfg, nil)
+		spinner := pin.New("Deploying", pin.WithSpinnerColor(pin.ColorCyan))
+		err := suite.deployment.Deploy(ctx, project, cfg, spinner)
 		suite.Require().NoError(err, "Initial deployment should succeed")
 
 		time.Sleep(5 * time.Second)
@@ -203,7 +205,8 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 		cfg.Services[0].Image = "nginx:1.20"
 		suite.T().Logf("Updating service image to nginx:1.20")
 
-		err = suite.deployment.Deploy(ctx, project, cfg, nil)
+		spinner = pin.New("Deploying", pin.WithSpinnerColor(pin.ColorCyan))
+		err = suite.deployment.Deploy(ctx, project, cfg, spinner)
 		suite.Require().NoError(err, "Service update should succeed")
 
 		time.Sleep(2 * time.Second)

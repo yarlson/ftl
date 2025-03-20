@@ -6,7 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"gopkg.in/yaml.v3"
 )
 
 type ConfigTestSuite struct {
@@ -575,4 +577,419 @@ dependencies: []
 	// The error message should say "required environment variable MY_REQUIRED_VAR not set"
 	assert.Contains(suite.T(), err.Error(), "required environment variable MY_REQUIRED_VAR not set")
 	assert.Contains(suite.T(), err.Error(), "must be set!")
+}
+
+func TestParseConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		envVars map[string]string
+		want    *Config
+		wantErr bool
+	}{
+		{
+			name: "valid minimal config",
+			yaml: `
+project:
+  name: test-project
+  domain: example.com
+  email: admin@example.com
+server:
+  host: server.example.com
+  port: 22
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
+services:
+  - name: web
+    port: 8080
+    routes:
+      - path: /
+`,
+			want: &Config{
+				Project: Project{
+					Name:   "test-project",
+					Domain: "example.com",
+					Email:  "admin@example.com",
+				},
+				Server: Server{
+					Host:   "server.example.com",
+					Port:   22,
+					User:   "deploy",
+					SSHKey: "~/.ssh/id_rsa",
+				},
+				Services: []Service{
+					{
+						Name: "web",
+						Port: 8080,
+						Routes: []Route{
+							{PathPrefix: "/"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "config with environment variables",
+			yaml: `
+project:
+  name: test-project
+  domain: example.com
+  email: admin@example.com
+server:
+  host: server.example.com
+  port: 22
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
+services:
+  - name: web
+    port: 8080
+    routes:
+      - path: /
+    env:
+      - DB_HOST=${DB_HOST:-localhost}
+      - DB_PORT=${DB_PORT:-5432}
+      - API_KEY=${API_KEY:?API key is required}
+`,
+			envVars: map[string]string{
+				"DB_HOST": "db.internal",
+				"API_KEY": "secret123",
+			},
+			want: &Config{
+				Project: Project{
+					Name:   "test-project",
+					Domain: "example.com",
+					Email:  "admin@example.com",
+				},
+				Server: Server{
+					Host:   "server.example.com",
+					Port:   22,
+					User:   "deploy",
+					SSHKey: "~/.ssh/id_rsa",
+				},
+				Services: []Service{
+					{
+						Name: "web",
+						Port: 8080,
+						Routes: []Route{
+							{PathPrefix: "/"},
+						},
+						Env: []string{
+							"DB_HOST=db.internal",
+							"DB_PORT=5432",
+							"API_KEY=secret123",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "config with dependencies",
+			yaml: `
+project:
+  name: test-project
+  domain: example.com
+  email: admin@example.com
+server:
+  host: server.example.com
+  port: 22
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
+services:
+  - name: web
+    port: 8080
+    routes:
+      - path: /
+dependencies:
+  - name: db
+    image: postgres:13
+    ports:
+      - 5432
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    env:
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-secret}
+`,
+			want: &Config{
+				Project: Project{
+					Name:   "test-project",
+					Domain: "example.com",
+					Email:  "admin@example.com",
+				},
+				Server: Server{
+					Host:   "server.example.com",
+					Port:   22,
+					User:   "deploy",
+					SSHKey: "~/.ssh/id_rsa",
+				},
+				Services: []Service{
+					{
+						Name: "web",
+						Port: 8080,
+						Routes: []Route{
+							{PathPrefix: "/"},
+						},
+					},
+				},
+				Dependencies: []Dependency{
+					{
+						Name:  "db",
+						Image: "postgres:13",
+						Ports: []int{5432},
+						Volumes: []string{
+							"pg_data:/var/lib/postgresql/data",
+						},
+						Env: []string{
+							"POSTGRES_PASSWORD=secret",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid config - missing required fields",
+			yaml: `
+project:
+  name: test-project
+services:
+  - name: web
+    routes:
+      - path: /
+`,
+			wantErr: true,
+		},
+		{
+			name: "invalid config - missing required env var",
+			yaml: `
+project:
+  name: test-project
+  domain: example.com
+  email: admin@example.com
+server:
+  host: server.example.com
+  port: 22
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
+services:
+  - name: web
+    port: 8080
+    routes:
+      - path: /
+    env:
+      - REQUIRED_VAR=${REQUIRED_VAR:?This variable is required}
+`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up environment variables
+			for k, v := range tt.envVars {
+				os.Setenv(k, v)
+				defer os.Unsetenv(k)
+			}
+
+			got, err := ParseConfig([]byte(tt.yaml))
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestServiceHash(t *testing.T) {
+	tests := []struct {
+		name     string
+		service1 *Service
+		service2 *Service
+		wantSame bool
+	}{
+		{
+			name: "identical services",
+			service1: &Service{
+				Name:  "web",
+				Image: "nginx:latest",
+				Port:  8080,
+				Routes: []Route{
+					{PathPrefix: "/"},
+				},
+			},
+			service2: &Service{
+				Name:  "web",
+				Image: "nginx:latest",
+				Port:  8080,
+				Routes: []Route{
+					{PathPrefix: "/"},
+				},
+			},
+			wantSame: true,
+		},
+		{
+			name: "different services",
+			service1: &Service{
+				Name:  "web",
+				Image: "nginx:latest",
+				Port:  8080,
+			},
+			service2: &Service{
+				Name:  "web",
+				Image: "nginx:1.19",
+				Port:  8080,
+			},
+			wantSame: false,
+		},
+		{
+			name: "same service with different ImageUpdated",
+			service1: &Service{
+				Name:         "web",
+				Image:        "nginx:latest",
+				ImageUpdated: true,
+			},
+			service2: &Service{
+				Name:         "web",
+				Image:        "nginx:latest",
+				ImageUpdated: false,
+			},
+			wantSame: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hash1, err := tt.service1.Hash()
+			require.NoError(t, err)
+
+			hash2, err := tt.service2.Hash()
+			require.NoError(t, err)
+
+			if tt.wantSame {
+				assert.Equal(t, hash1, hash2)
+			} else {
+				assert.NotEqual(t, hash1, hash2)
+			}
+		})
+	}
+}
+
+func TestExpandWithEnvAndDefault(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		envVars map[string]string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:  "simple variable",
+			input: "${VAR}",
+			envVars: map[string]string{
+				"VAR": "value",
+			},
+			want: "value",
+		},
+		{
+			name:  "variable with default",
+			input: "${VAR:-default}",
+			want:  "default",
+		},
+		{
+			name:  "variable with default but set",
+			input: "${VAR:-default}",
+			envVars: map[string]string{
+				"VAR": "value",
+			},
+			want: "value",
+		},
+		{
+			name:    "required variable not set",
+			input:   "${VAR:?required}",
+			wantErr: true,
+		},
+		{
+			name:  "required variable set",
+			input: "${VAR:?required}",
+			envVars: map[string]string{
+				"VAR": "value",
+			},
+			want: "value",
+		},
+		{
+			name:  "multiple variables",
+			input: "host=${HOST:-localhost} port=${PORT:-5432}",
+			envVars: map[string]string{
+				"HOST": "db.internal",
+			},
+			want: "host=db.internal port=5432",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up environment variables
+			for k, v := range tt.envVars {
+				os.Setenv(k, v)
+				defer os.Unsetenv(k)
+			}
+
+			got, err := expandWithEnvAndDefault(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestHookItemUnmarshalYAML(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		want    *HookItem
+		wantErr bool
+	}{
+		{
+			name: "string hook",
+			yaml: `"echo 'test'"`,
+			want: &HookItem{
+				Remote: "echo 'test'",
+			},
+		},
+		{
+			name: "map hook",
+			yaml: `
+remote: "echo 'remote'"
+local: "echo 'local'"
+`,
+			want: &HookItem{
+				Remote: "echo 'remote'",
+				Local:  "echo 'local'",
+			},
+		},
+		{
+			name:    "invalid hook",
+			yaml:    `[invalid]`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got HookItem
+			err := yaml.Unmarshal([]byte(tt.yaml), &got)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, &got)
+		})
+	}
 }

@@ -302,6 +302,7 @@ func expandOneVar(key string) (string, error) {
 	return "", nil
 }
 
+// ParseConfig parses and validates configuration from YAML data
 func ParseConfig(data []byte) (*Config, error) {
 	// Load any .env file from the current directory
 	_ = godotenv.Load()
@@ -319,14 +320,13 @@ func ParseConfig(data []byte) (*Config, error) {
 
 	// Process .env files for services if they exist
 	for i := range config.Services {
-		if config.Services[i].Path == "" {
-			config.Services[i].Path = "./"
-		}
-
-		envPath := filepath.Join(config.Services[i].Path, ".env")
-		if _, err := os.Stat(envPath); err == nil {
-			if err := godotenv.Load(envPath); err != nil {
-				return nil, fmt.Errorf("failed to read .env file: %w", err)
+		// Only set default path if service has a local path configuration
+		if config.Services[i].Path != "" {
+			envPath := filepath.Join(config.Services[i].Path, ".env")
+			if _, err := os.Stat(envPath); err == nil {
+				if err := godotenv.Load(envPath); err != nil {
+					return nil, fmt.Errorf("failed to read .env file: %w", err)
+				}
 			}
 		}
 	}
@@ -349,40 +349,50 @@ func ParseConfig(data []byte) (*Config, error) {
 		return nil, fmt.Errorf("validation error: %v", err)
 	}
 
-	// Collect all named volumes from config.Services and config.Dependencies,
-	// plus any that were explicitly listed in config.Volumes, deduplicating them.
-	uniqueVolNames := make(map[string]struct{})
-
-	// First, preserve any volumes already defined in config.Volumes
-	for _, volName := range config.Volumes {
-		uniqueVolNames[volName] = struct{}{}
-	}
-
-	// Check volumes in each service
-	for _, svc := range config.Services {
-		for _, volRef := range svc.Volumes {
-			if volName := extractNamedVolume(volRef); volName != "" {
-				uniqueVolNames[volName] = struct{}{}
-			}
-		}
-	}
-
-	// Check volumes in each dependency
+	// Only collect volumes if there are explicitly defined volumes or if we're using default configs
+	hasDefaultConfigs := false
 	for _, dep := range config.Dependencies {
-		for _, volRef := range dep.Volumes {
-			if volName := extractNamedVolume(volRef); volName != "" {
-				uniqueVolNames[volName] = struct{}{}
-			}
+		if _, ok := defaultConfigs[strings.ToLower(dep.Name)]; ok {
+			hasDefaultConfigs = true
+			break
 		}
 	}
 
-	// Convert to a sorted slice
-	finalVols := make([]string, 0, len(uniqueVolNames))
-	for name := range uniqueVolNames {
-		finalVols = append(finalVols, name)
+	if len(config.Volumes) > 0 || hasDefaultConfigs {
+		// Collect all named volumes from config.Services and config.Dependencies
+		uniqueVolNames := make(map[string]struct{})
+
+		// First, preserve any volumes already defined in config.Volumes
+		for _, volName := range config.Volumes {
+			uniqueVolNames[volName] = struct{}{}
+		}
+
+		// Check volumes in each service
+		for _, svc := range config.Services {
+			for _, volRef := range svc.Volumes {
+				if volName := extractNamedVolume(volRef); volName != "" {
+					uniqueVolNames[volName] = struct{}{}
+				}
+			}
+		}
+
+		// Check volumes in each dependency
+		for _, dep := range config.Dependencies {
+			for _, volRef := range dep.Volumes {
+				if volName := extractNamedVolume(volRef); volName != "" {
+					uniqueVolNames[volName] = struct{}{}
+				}
+			}
+		}
+
+		// Convert to a sorted slice
+		finalVols := make([]string, 0, len(uniqueVolNames))
+		for name := range uniqueVolNames {
+			finalVols = append(finalVols, name)
+		}
+		sort.Strings(finalVols)
+		config.Volumes = finalVols
 	}
-	sort.Strings(finalVols)
-	config.Volumes = finalVols
 
 	return &config, nil
 }
