@@ -585,7 +585,7 @@ services:
 					Domain: "example.com",
 					Email:  "admin@example.com",
 				},
-				Server: Server{
+				Server: &Server{
 					Host:   "server.example.com",
 					Port:   22,
 					User:   "deploy",
@@ -625,7 +625,7 @@ services:
 					Domain: "example.com",
 					Email:  "admin@example.com",
 				},
-				Server: Server{
+				Server: &Server{
 					Host:   "example.com",
 					Port:   22,
 					User:   "deploy",
@@ -674,7 +674,7 @@ services:
 					Domain: "example.com",
 					Email:  "admin@example.com",
 				},
-				Server: Server{
+				Server: &Server{
 					Host:   "server.example.com",
 					Port:   22,
 					User:   "deploy",
@@ -729,7 +729,7 @@ dependencies:
 					Domain: "example.com",
 					Email:  "admin@example.com",
 				},
-				Server: Server{
+				Server: &Server{
 					Host:   "server.example.com",
 					Port:   22,
 					User:   "deploy",
@@ -816,7 +816,7 @@ services:
 					Domain: "example.com",
 					Email:  "admin@example.com",
 				},
-				Server: Server{
+				Server: &Server{
 					Host: "server.example.com",
 					Port: 22,
 					User: "deploy",
@@ -1132,4 +1132,25 @@ func TestFindDefaultSSHKey(t *testing.T) {
 	foundKey, err := findDefaultSSHKey()
 	assert.NoError(t, err)
 	assert.Equal(t, filepath.Join(sshDir, "id_rsa"), foundKey)
+}
+
+func TestNilServer(t *testing.T) {
+	yamlData := []byte(`
+project:
+  name: test-project
+  domain: example.com
+  email: admin@example.com
+services:
+  - name: web
+    image: nginx:latest
+    port: 80
+    routes:
+      - path: /
+`)
+
+	config, err := ParseConfig(yamlData)
+	assert.NoError(t, err)
+	assert.NotNil(t, config)
+	assert.NotNil(t, config.Server)
+	assert.Equal(t, "example.com", config.Server.Host)
 }

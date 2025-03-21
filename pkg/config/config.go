@@ -20,7 +20,7 @@ import (
 
 type Config struct {
 	Project      Project      `yaml:"project" validate:"required"`
-	Server       Server       `yaml:"server" validate:"required"`
+	Server       *Server      `yaml:"server" validate:"omitempty"`
 	Services     []Service    `yaml:"services" validate:"required,dive"`
 	Dependencies []Dependency `yaml:"dependencies" validate:"dive"`
 	Volumes      []string     `yaml:"volumes" validate:"dive"`
@@ -317,6 +317,11 @@ func ParseConfig(data []byte) (*Config, error) {
 	var config Config
 	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {
 		return nil, fmt.Errorf("error parsing YAML: %v", err)
+	}
+
+	// Set empty server if not specified
+	if config.Server == nil {
+		config.Server = &Server{}
 	}
 
 	// Set default host to project.domain if not specified

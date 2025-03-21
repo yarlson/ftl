@@ -41,7 +41,7 @@ func runDeploy(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if err := deployToServer(cfg.Project.Name, cfg, cfg.Server, pDeploy); err != nil {
+	if err := deployToServer(cfg.Project.Name, cfg, pDeploy); err != nil {
 		pDeploy.Fail(fmt.Sprintf("Deployment failed: %v", err))
 		return
 	}
@@ -63,7 +63,8 @@ func parseConfig(filename string) (*config.Config, error) {
 	return cfg, nil
 }
 
-func deployToServer(project string, cfg *config.Config, server config.Server, spinner *pin.Pin) error {
+func deployToServer(project string, cfg *config.Config, spinner *pin.Pin) error {
+	server := cfg.Server
 	hostname := server.Host
 
 	spinner.UpdateMessage("Connecting to server " + hostname + "...")
@@ -101,7 +102,7 @@ func deployToServer(project string, cfg *config.Config, server config.Server, sp
 	return nil
 }
 
-func connectToServer(server config.Server) (*remote.Runner, error) {
+func connectToServer(server *config.Server) (*remote.Runner, error) {
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
 	sshClient, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
 	if err != nil {

@@ -31,7 +31,7 @@ func Setup(ctx context.Context, cfg *config.Config, dockerCreds DockerCredential
 	return nil
 }
 
-func setupServer(ctx context.Context, cfg config.Server, dockerCreds DockerCredentials, newUserPassword string, spinner *pin.Pin) error {
+func setupServer(ctx context.Context, cfg *config.Server, dockerCreds DockerCredentials, newUserPassword string, spinner *pin.Pin) error {
 	spinner.UpdateMessage("Establishing SSH connection to server " + cfg.Host + " as root...")
 	sshClient, rootKey, err := ssh.FindKeyAndConnectWithUser(cfg.Host, cfg.Port, "root", cfg.SSHKey)
 	if err != nil {
@@ -118,7 +118,7 @@ func createUser(ctx context.Context, runner *remote.Runner, user, password strin
 	return runner.RunCommands(ctx, commands)
 }
 
-func setupSSHKey(ctx context.Context, runner *remote.Runner, server config.Server) error {
+func setupSSHKey(ctx context.Context, runner *remote.Runner, server *config.Server) error {
 	keyData, err := readSSHKey(server.SSHKey)
 	if err != nil {
 		return err
