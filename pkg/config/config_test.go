@@ -567,7 +567,7 @@ services:
       - path: "/"
     port: 8080
     env:
-      - "MUST_BE_SET=${MY_REQUIRED_VAR:?must be set!}"
+      - MUST_BE_SET=${MY_REQUIRED_VAR:?must be set!}"
 dependencies: []
 `)
 
@@ -630,14 +630,15 @@ services:
 			},
 		},
 		{
-			name: "config with default port and user",
+			name: "config with default host from project.domain",
 			yaml: `
 project:
   name: test-project
   domain: example.com
   email: admin@example.com
 server:
-  host: server.example.com
+  port: 22
+  user: deploy
   ssh_key: ~/.ssh/id_rsa
 services:
   - name: web
@@ -652,9 +653,9 @@ services:
 					Email:  "admin@example.com",
 				},
 				Server: Server{
-					Host:   "server.example.com",
-					Port:   22, // Default port
-					User:   "", // Will be replaced with current user in test
+					Host:   "example.com",
+					Port:   22,
+					User:   "deploy",
 					SSHKey: "~/.ssh/id_rsa",
 				},
 				Services: []Service{

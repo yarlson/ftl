@@ -40,7 +40,7 @@ Defines the target server for deployment.
 
 ```yaml
 server:
-  host: my-project.example.com # Required: Server hostname or IP address
+  host: my-project.example.com # Optional: Server hostname or IP address (defaults to project.domain)
   port: 22 # Optional: SSH port (default: 22)
   user: my-project # Optional: SSH username (default: current user)
   ssh_key: ~/.ssh/id_rsa # Required: Path to SSH private key file
@@ -48,7 +48,7 @@ server:
 
 | Field     | Type    | Required | Default | Description                      |
 | --------- | ------- | -------- | ------- | -------------------------------- |
-| `host`    | string  | Yes      | -       | Server hostname or IP address    |
+| `host`    | string  | No       | project.domain | Server hostname or IP address    |
 | `port`    | integer | No       | 22      | SSH port number                  |
 | `user`    | string  | No       | Current user | SSH username for authentication  |
 | `ssh_key` | string  | Yes      | -       | Path to the SSH private key file |

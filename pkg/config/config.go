@@ -33,7 +33,7 @@ type Project struct {
 }
 
 type Server struct {
-	Host       string `yaml:"host" validate:"required,fqdn|ip"`
+	Host       string `yaml:"host" validate:"omitempty,fqdn|ip"`
 	Port       int    `yaml:"port" validate:"omitempty,min=1,max=65535"`
 	User       string `yaml:"user"`
 	Passwd     string `yaml:"-"`
@@ -317,6 +317,11 @@ func ParseConfig(data []byte) (*Config, error) {
 	var config Config
 	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {
 		return nil, fmt.Errorf("error parsing YAML: %v", err)
+	}
+
+	// Set default host to project.domain if not specified
+	if config.Server.Host == "" {
+		config.Server.Host = config.Project.Domain
 	}
 
 	// Set default port if not specified
