@@ -37,7 +37,7 @@ type Server struct {
 	Port       int    `yaml:"port" validate:"omitempty,min=1,max=65535"`
 	User       string `yaml:"user"`
 	Passwd     string `yaml:"-"`
-	SSHKey     string `yaml:"ssh_key" validate:"required,filepath"`
+	SSHKey     string `yaml:"ssh_key" validate:"omitempty,filepath"`
 	RootSSHKey string `yaml:"-"`
 }
 
@@ -338,6 +338,15 @@ func ParseConfig(data []byte) (*Config, error) {
 		config.Server.User = currentUser.Username
 	}
 
+	// If no SSH key is specified, try to find a default one
+	if config.Server.SSHKey == "" {
+		defaultKey, err := findDefaultSSHKey()
+		if err != nil {
+			return nil, fmt.Errorf("no SSH key specified and failed to find default key: %w", err)
+		}
+		config.Server.SSHKey = defaultKey
+	}
+
 	// Process .env files for services if they exist
 	for i := range config.Services {
 		// Only set default path if service has a local path configuration
@@ -493,4 +502,33 @@ func sortMap(m reflect.Value) map[string]interface{} {
 		sorted[key.String()] = m.MapIndex(key).Interface()
 	}
 	return sorted
+}
+
+// findDefaultSSHKey searches for SSH keys in the default locations
+func findDefaultSSHKey() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	sshDir := filepath.Join(home, ".ssh")
+	keyNames := []string{
+		"id_ed25519", // Ed25519 - modern, preferred
+		"id_rsa",     // RSA
+		"id_ecdsa",   // ECDSA
+		"id_dsa",     // DSA - deprecated, less secure
+	}
+
+	for _, name := range keyNames {
+		keyPath := filepath.Join(sshDir, name)
+		if _, err := os.Stat(keyPath); err == nil {
+			// Check if we also have the public key
+			pubKeyPath := keyPath + ".pub"
+			if _, err := os.Stat(pubKeyPath); err == nil {
+				return keyPath, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no suitable SSH key found in %s", sshDir)
 }

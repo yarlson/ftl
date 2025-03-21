@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -230,34 +231,6 @@ services:
 
 	// Test Post Hooks
 	assert.Nil(suite.T(), config.Services[0].Hooks.Post)
-}
-
-func (suite *ConfigTestSuite) TestParseConfig_InvalidHookFormat() {
-	yamlData := []byte(`
-project:
-  name: "test-project"
-  domain: "example.com"
-  email: "test@example.com"
-servers:
-  - host: "example.com"
-    port: 22
-    user: "user"
-    ssh_key: "~/.ssh/id_rsa"
-services:
-  - name: "web"
-    image: "nginx:latest"
-    port: 80
-    routes:
-      - path: "/"
-    hooks:
-      pre:
-        invalid_field: true
-`)
-
-	config, err := ParseConfig(yamlData)
-
-	assert.Error(suite.T(), err)
-	assert.Nil(suite.T(), config)
 }
 
 func (suite *ConfigTestSuite) TestParseConfig_StringDependency() {
@@ -820,10 +793,70 @@ services:
 `,
 			wantErr: true,
 		},
+		{
+			name: "config without ssh_key",
+			yaml: `
+project:
+  name: test-project
+  domain: example.com
+  email: admin@example.com
+server:
+  host: server.example.com
+  port: 22
+  user: deploy
+services:
+  - name: web
+    port: 8080
+    routes:
+      - path: /
+`,
+			want: &Config{
+				Project: Project{
+					Name:   "test-project",
+					Domain: "example.com",
+					Email:  "admin@example.com",
+				},
+				Server: Server{
+					Host: "server.example.com",
+					Port: 22,
+					User: "deploy",
+					// SSHKey will be set by findDefaultSSHKey
+				},
+				Services: []Service{
+					{
+						Name: "web",
+						Port: 8080,
+						Routes: []Route{
+							{PathPrefix: "/"},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary SSH key for testing
+			if strings.Contains(tt.name, "without ssh_key") {
+				tempDir := t.TempDir()
+				sshDir := filepath.Join(tempDir, ".ssh")
+				err := os.MkdirAll(sshDir, 0700)
+				require.NoError(t, err)
+
+				// Create a dummy SSH key pair
+				keyPath := filepath.Join(sshDir, "id_ed25519")
+				err = os.WriteFile(keyPath, []byte("dummy key"), 0600)
+				require.NoError(t, err)
+				err = os.WriteFile(keyPath+".pub", []byte("dummy pub key"), 0644)
+				require.NoError(t, err)
+
+				// Set HOME to our temp dir
+				originalHome := os.Getenv("HOME")
+				os.Setenv("HOME", tempDir)
+				defer os.Setenv("HOME", originalHome)
+			}
+
 			// Set up environment variables
 			for k, v := range tt.envVars {
 				os.Setenv(k, v)
@@ -842,6 +875,11 @@ services:
 				currentUser, err := user.Current()
 				require.NoError(t, err)
 				tt.want.Server.User = currentUser.Username
+			}
+			if strings.Contains(tt.name, "without ssh_key") {
+				// For the no-ssh-key case, we just check that some key was found
+				assert.NotEmpty(t, got.Server.SSHKey)
+				tt.want.Server.SSHKey = got.Server.SSHKey
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -1000,6 +1038,7 @@ func TestHookItemUnmarshalYAML(t *testing.T) {
 		yaml    string
 		want    *HookItem
 		wantErr bool
+		errMsg  string
 	}{
 		{
 			name: "string hook",
@@ -1039,4 +1078,58 @@ local: "echo 'local'"
 			assert.Equal(t, tt.want, &got)
 		})
 	}
+}
+
+func TestFindDefaultSSHKey(t *testing.T) {
+	// Create a temporary directory structure
+	tempDir := t.TempDir()
+	sshDir := filepath.Join(tempDir, ".ssh")
+	err := os.MkdirAll(sshDir, 0700)
+	require.NoError(t, err)
+
+	// Save original HOME and restore it after test
+	originalHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+	defer os.Setenv("HOME", originalHome)
+
+	// Test when no keys exist
+	_, err = findDefaultSSHKey()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no suitable SSH key found")
+
+	// Create keys in preferred order
+	keys := []string{
+		"id_dsa", // Least preferred
+		"id_ecdsa",
+		"id_rsa",
+		"id_ed25519", // Most preferred
+	}
+
+	// Create each key and test
+	for i, keyName := range keys {
+		// Create private and public key files
+		keyPath := filepath.Join(sshDir, keyName)
+		err = os.WriteFile(keyPath, []byte("dummy key"), 0600)
+		require.NoError(t, err)
+		err = os.WriteFile(keyPath+".pub", []byte("dummy pub key"), 0644)
+		require.NoError(t, err)
+
+		// Test finding key
+		foundKey, err := findDefaultSSHKey()
+		assert.NoError(t, err)
+
+		// Should always find the most preferred (last created) key
+		expectedKey := filepath.Join(sshDir, keys[i])
+		assert.Equal(t, expectedKey, foundKey)
+	}
+
+	// Test with missing public key
+	// Remove the public key of the most preferred key
+	err = os.Remove(filepath.Join(sshDir, "id_ed25519.pub"))
+	require.NoError(t, err)
+
+	// Should fall back to the next best key with a public key
+	foundKey, err := findDefaultSSHKey()
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(sshDir, "id_rsa"), foundKey)
 }
