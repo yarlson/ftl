@@ -7,7 +7,7 @@ For comprehensive documentation, visit [https://ftl-deploy.org](https://ftl-depl
 ## Features
 
 - Zero-downtime deployments with automated health checks
-- Single YAML configuration with environment variable support
+- Single YAML configuration with environment variable support and validation
 - Built-in Nginx reverse proxy with automatic SSL/TLS certificate management
 - Docker-based deployment with layer-optimized transfers
 - Real-time log streaming and monitoring
@@ -90,12 +90,25 @@ volumes:
   - redis_data
 ```
 
+You can validate your configuration at any time using:
+
+```bash
+ftl validate
+```
+
 ### Environment Variables
 
 - Required variables: Use `${VAR_NAME}`
 - Optional variables with defaults: Use `${VAR_NAME:-default_value}`
 
 ## Usage
+
+### Configuration Validation
+
+```bash
+# Validate your ftl.yaml configuration
+ftl validate
+```
 
 ### Server Setup
 
@@ -178,12 +191,19 @@ Visit our [ftl-examples](https://github.com/yarlson/ftl-examples) repository for
 
 ### Common Issues
 
-1. Registry Authentication Failures
+1. Configuration Validation Errors
+
+   - Ensure all required fields are present
+   - Check port numbers are valid
+   - Verify file paths exist
+   - Confirm environment variables are properly defined
+
+2. Registry Authentication Failures
 
    - FTL currently supports only username/password authentication
    - Token-based authentication is not supported
 
-2. SSH Connection Issues
+3. SSH Connection Issues
    - Verify SSH key permissions
    - Ensure server firewall allows connections
    - Check user permissions on target server
