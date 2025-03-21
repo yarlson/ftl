@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -34,7 +35,7 @@ type Project struct {
 type Server struct {
 	Host       string `yaml:"host" validate:"required,fqdn|ip"`
 	Port       int    `yaml:"port" validate:"omitempty,min=1,max=65535"`
-	User       string `yaml:"user" validate:"required"`
+	User       string `yaml:"user"`
 	Passwd     string `yaml:"-"`
 	SSHKey     string `yaml:"ssh_key" validate:"required,filepath"`
 	RootSSHKey string `yaml:"-"`
@@ -321,6 +322,15 @@ func ParseConfig(data []byte) (*Config, error) {
 	// Set default port if not specified
 	if config.Server.Port == 0 {
 		config.Server.Port = 22
+	}
+
+	// Set default user to current user if not specified
+	if config.Server.User == "" {
+		currentUser, err := user.Current()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current user: %w", err)
+		}
+		config.Server.User = currentUser.Username
 	}
 
 	// Process .env files for services if they exist

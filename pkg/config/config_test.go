@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 	"testing"
 
@@ -629,7 +630,7 @@ services:
 			},
 		},
 		{
-			name: "config with default port",
+			name: "config with default port and user",
 			yaml: `
 project:
   name: test-project
@@ -637,7 +638,6 @@ project:
   email: admin@example.com
 server:
   host: server.example.com
-  user: deploy
   ssh_key: ~/.ssh/id_rsa
 services:
   - name: web
@@ -654,7 +654,7 @@ services:
 				Server: Server{
 					Host:   "server.example.com",
 					Port:   22, // Default port
-					User:   "deploy",
+					User:   "", // Will be replaced with current user in test
 					SSHKey: "~/.ssh/id_rsa",
 				},
 				Services: []Service{
@@ -836,6 +836,12 @@ services:
 			}
 
 			require.NoError(t, err)
+			if tt.want.Server.User == "" {
+				// If test expects empty user, replace with current user
+				currentUser, err := user.Current()
+				require.NoError(t, err)
+				tt.want.Server.User = currentUser.Username
+			}
 			assert.Equal(t, tt.want, got)
 		})
 	}

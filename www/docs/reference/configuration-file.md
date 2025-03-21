@@ -42,7 +42,7 @@ Defines the target server for deployment.
 server:
   host: my-project.example.com # Required: Server hostname or IP address
   port: 22 # Optional: SSH port (default: 22)
-  user: my-project # Required: SSH username for authentication
+  user: my-project # Optional: SSH username (default: current user)
   ssh_key: ~/.ssh/id_rsa # Required: Path to SSH private key file
 ```
 
@@ -50,7 +50,7 @@ server:
 | --------- | ------- | -------- | ------- | -------------------------------- |
 | `host`    | string  | Yes      | -       | Server hostname or IP address    |
 | `port`    | integer | No       | 22      | SSH port number                  |
-| `user`    | string  | Yes      | -       | SSH username for authentication  |
+| `user`    | string  | No       | Current user | SSH username for authentication  |
 | `ssh_key` | string  | Yes      | -       | Path to the SSH private key file |
 
 ## Services
