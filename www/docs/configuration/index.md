@@ -51,7 +51,7 @@ FTL supports environment variable substitution in your configuration:
 Each section of the configuration has its own detailed documentation:
 
 - [Project Settings](./project-settings.md) - Core project configuration
-- [Server Configuration](./services.md) - Server and SSH settings
+- [Server Configuration](./server.md) - Server and SSH settings
 - [Services](./services.md) - Application service definitions
 - [Dependencies](./dependencies.md) - Supporting service configuration
 - [Volumes](./volumes.md) - Persistent storage management
