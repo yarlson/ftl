@@ -63,9 +63,10 @@ project:
   email: my-project@example.com
 
 server:
-  host: my-project.example.com
-  user: my-project
-  ssh_key: ~/.ssh/id_rsa
+  host: my-project.example.com # Optional, defaults to project.domain
+  port: 22 # Optional, defaults to 22
+  user: my-project # Optional, defaults to current system user
+  ssh_key: ~/.ssh/id_rsa # Optional, auto-detected from standard locations
 
 services:
   - name: web
