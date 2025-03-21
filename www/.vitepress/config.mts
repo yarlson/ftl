@@ -7,6 +7,17 @@ export default withMermaid(
     description: "Documentation for FTL - Faster Than Light Deployment Tool",
     srcDir: "./docs",
 
+    head: [
+      [
+        'script',
+        {
+          defer: 'true',
+          'data-domain': 'ftl-deploy.org',
+          src: 'https://plausible.io/js/script.outbound-links.js'
+        }
+      ]
+    ],
+
     markdown: {
       theme: {
         light: "github-light",
