@@ -629,6 +629,46 @@ services:
 			},
 		},
 		{
+			name: "config with default port",
+			yaml: `
+project:
+  name: test-project
+  domain: example.com
+  email: admin@example.com
+server:
+  host: server.example.com
+  user: deploy
+  ssh_key: ~/.ssh/id_rsa
+services:
+  - name: web
+    port: 8080
+    routes:
+      - path: /
+`,
+			want: &Config{
+				Project: Project{
+					Name:   "test-project",
+					Domain: "example.com",
+					Email:  "admin@example.com",
+				},
+				Server: Server{
+					Host:   "server.example.com",
+					Port:   22, // Default port
+					User:   "deploy",
+					SSHKey: "~/.ssh/id_rsa",
+				},
+				Services: []Service{
+					{
+						Name: "web",
+						Port: 8080,
+						Routes: []Route{
+							{PathPrefix: "/"},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "config with environment variables",
 			yaml: `
 project:

@@ -33,7 +33,7 @@ type Project struct {
 
 type Server struct {
 	Host       string `yaml:"host" validate:"required,fqdn|ip"`
-	Port       int    `yaml:"port" validate:"required,min=1,max=65535"`
+	Port       int    `yaml:"port" validate:"omitempty,min=1,max=65535"`
 	User       string `yaml:"user" validate:"required"`
 	Passwd     string `yaml:"-"`
 	SSHKey     string `yaml:"ssh_key" validate:"required,filepath"`
@@ -316,6 +316,11 @@ func ParseConfig(data []byte) (*Config, error) {
 	var config Config
 	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {
 		return nil, fmt.Errorf("error parsing YAML: %v", err)
+	}
+
+	// Set default port if not specified
+	if config.Server.Port == 0 {
+		config.Server.Port = 22
 	}
 
 	// Process .env files for services if they exist
