@@ -12,6 +12,7 @@ For comprehensive documentation, visit [https://ftl-deploy.org](https://ftl-depl
 - Docker-based deployment with layer-optimized transfers
 - Real-time log streaming and monitoring
 - Secure SSH tunneling for remote dependencies
+- **GitHub Actions integration** for automated CI/CD workflows
 
 ## Requirements
 
@@ -102,6 +103,33 @@ ftl validate
 - Optional variables with defaults: Use `${VAR_NAME:-default_value}`
 
 ## Usage
+
+### GitHub Actions Integration
+
+Deploy automatically using the official FTL GitHub Action:
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy with FTL
+        uses: yarlson/ftl-deploy-action@v1
+        with:
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+```
+
+For complete GitHub Actions documentation, see the [integration guide](https://ftl-deploy.org/guides/github-actions) or visit the [action repository](https://github.com/yarlson/ftl-deploy-action).
 
 ### Configuration Validation
 

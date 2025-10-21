@@ -108,6 +108,10 @@ Deploy your web applications to production servers without complexity. FTL handl
     <span>Step-by-step guide to your first deployment</span>
   </li>
   <li>
+    <a href="/guides/github-actions">GitHub Actions Integration</a>
+    <span>Automate deployments with GitHub Actions</span>
+  </li>
+  <li>
     <a href="/guides/concepts">Core Concepts</a>
     <span>Learn the basics of deployment</span>
   </li>

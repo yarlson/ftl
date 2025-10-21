@@ -9,6 +9,10 @@ This section contains comprehensive guides for implementing advanced deployment 
 
 ## Available Guides
 
+### [GitHub Actions Integration](./github-actions.md)
+
+Learn how to deploy your applications automatically using FTL and GitHub Actions. This guide covers setup, SSH configuration, and common deployment patterns for CI/CD workflows.
+
 ### [Health Checks](./health-checks.md)
 
 Learn how to implement robust health checks for your services to ensure reliable deployments and runtime monitoring. This guide covers configuration options, best practices, and troubleshooting common health check issues.
