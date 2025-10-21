@@ -124,4 +124,3 @@ Make sure environment variables are passed in the `env` section of the action st
 
 - [Configure health checks](/guides/health-checks) for zero-downtime deployments
 - [Set up monitoring](/core-tasks/logging) with FTL logs
-- [Review security best practices](/guides/security)
