@@ -57,13 +57,11 @@ Health check has one required and three optional parameters:
 Optional timing parameters:
 
 - `interval`: Time between checks
-
   - Default: 15 seconds
   - Should be short enough to detect issues quickly
   - But not so frequent as to overload the service
 
 - `timeout`: Maximum time to wait for response
-
   - Default: 10 seconds
   - Should be less than the interval
   - Consider your service's normal response time

@@ -43,10 +43,12 @@ func (suite *DeploymentTestSuite) SetupTest() {
 	suite.tc = tc
 
 	suite.T().Log("Creating SSH client...")
+
 	sshClient, err := ssh.NewSSHClientWithPassword("127.0.0.1", tc.SshPort.Port(), "root", "testpassword")
 	suite.Require().NoError(err)
 
 	suite.T().Log("Creating runner and spinner manager...")
+
 	runner := remote.NewRunner(sshClient)
 	suite.runner = runner
 	suite.deployment = NewDeployment(runner, nil)
@@ -72,6 +74,7 @@ func (suite *DeploymentTestSuite) inspectContainer(containerName string) map[str
 	suite.Require().NoError(err)
 
 	var containerInfo []map[string]interface{}
+
 	err = json.Unmarshal(outputBytes, &containerInfo)
 	suite.Require().NoError(err)
 	suite.Require().Len(containerInfo, 1)
@@ -179,6 +182,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 					},
 				}
+
 				for {
 					select {
 					case <-requestCtx.Done():
@@ -186,13 +190,17 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 					default:
 						port := suite.tc.SslPort.Port()
 						resp, err := client.Get(fmt.Sprintf("https://localhost:%s/", port))
+
 						atomic.AddInt32(&requestStats.totalRequests, 1)
+
 						if err != nil || resp.StatusCode != http.StatusOK {
 							atomic.AddInt32(&requestStats.failedRequests, 1)
 						}
+
 						if resp != nil {
 							_ = resp.Body.Close()
 						}
+
 						time.Sleep(10 * time.Millisecond)
 					}
 				}
@@ -203,6 +211,7 @@ func (suite *DeploymentTestSuite) TestDeploy() {
 
 		// Update service image
 		cfg.Services[0].Image = "nginx:1.20"
+
 		suite.T().Logf("Updating service image to nginx:1.20")
 
 		spinner = pin.New("Deploying", pin.WithSpinnerColor(pin.ColorCyan))

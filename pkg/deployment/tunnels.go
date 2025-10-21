@@ -13,6 +13,7 @@ func hasLocalHooks(cfg *config.Config) bool {
 		if service.Hooks != nil && service.Hooks.Pre != nil && service.Hooks.Pre.Local != "" {
 			return true
 		}
+
 		if service.Hooks != nil && service.Hooks.Post != nil && service.Hooks.Post.Local != "" {
 			return true
 		}

@@ -28,6 +28,7 @@ func (c Color) String() string {
 	if disableColor {
 		return ""
 	}
+
 	switch c {
 	case ColorReset:
 		return "\033[0m"
@@ -81,10 +82,12 @@ func Input(a ...interface{}) {
 // ReadLine reads a line from standard input.
 func ReadLine() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
+
 	line, err := reader.ReadString('\n')
 	if err != nil {
 		return "", err
 	}
+
 	return strings.TrimSpace(line), nil
 }
 

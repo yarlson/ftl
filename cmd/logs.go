@@ -72,7 +72,10 @@ func getLogs(cfg *config.Config, serviceName string, follow bool, tail int) erro
 	if err != nil {
 		return fmt.Errorf("failed to connect to server %s: %v", cfg.Server.Host, err)
 	}
-	defer runner.Close()
+
+	defer func() {
+		_ = runner.Close()
+	}()
 
 	logger := logs.NewLogger(runner)
 	ctx := context.Background()

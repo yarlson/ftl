@@ -25,7 +25,10 @@ func TestFindSSHKey(t *testing.T) {
 
 	// Override the home directory to point to tempDir
 	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
+
+	defer func() {
+		_ = os.Setenv("HOME", originalHome)
+	}()
 
 	_ = os.Setenv("HOME", tempDir)
 

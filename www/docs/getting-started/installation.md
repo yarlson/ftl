@@ -63,13 +63,11 @@ Before installing FTL, ensure your system meets these requirements:
 ### Local Development Machine
 
 - **Operating System:**
-
   - macOS 10.15 or later
   - Linux (major distributions)
   - Windows 10/11 with WSL2
 
 - **Required Software:**
-
   - Git
   - Docker Desktop or Docker Engine
   - SSH client
@@ -82,13 +80,11 @@ Before installing FTL, ensure your system meets these requirements:
 ### Target Deployment Server
 
 - **Operating System:**
-
   - Ubuntu 20.04 LTS or newer (recommended)
   - Debian 11 or newer
   - Other Linux distributions with Docker support
 
 - **Hardware:**
-
   - 1GB RAM (minimum)
   - 1 CPU core (minimum)
   - 20GB disk space (recommended)

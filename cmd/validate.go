@@ -30,6 +30,7 @@ func init() {
 
 func runValidate(cmd *cobra.Command, args []string) {
 	pValidate := pin.New("Validating configuration", pin.WithSpinnerColor(pin.ColorCyan))
+
 	cancelValidate := pValidate.Start(context.Background())
 	defer cancelValidate()
 

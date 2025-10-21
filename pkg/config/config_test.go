@@ -439,8 +439,11 @@ dependencies:
 func (suite *ConfigTestSuite) TestParseConfig_EnvExpansionInDefaults_Success() {
 	// We'll set an env var that overrides the default "production-secret" for MySQL.
 	// Then after the test, we'll unset it to avoid side effects in other tests.
-	os.Setenv("MYSQL_ROOT_PASSWORD", "super-secret-password")
-	defer os.Unsetenv("MYSQL_ROOT_PASSWORD")
+	_ = os.Setenv("MYSQL_ROOT_PASSWORD", "super-secret-password")
+
+	defer func() {
+		_ = os.Unsetenv("MYSQL_ROOT_PASSWORD")
+	}()
 
 	yamlData := []byte(`
 project:
@@ -483,8 +486,11 @@ dependencies:
 
 func (suite *ConfigTestSuite) TestParseConfig_EnvExpansionInServices_Success() {
 	// We'll set an env var that overrides a default in the service env.
-	os.Setenv("MY_SERVICE_VAR", "overridden-value")
-	defer os.Unsetenv("MY_SERVICE_VAR")
+	_ = os.Setenv("MY_SERVICE_VAR", "overridden-value")
+
+	defer func() {
+		_ = os.Unsetenv("MY_SERVICE_VAR")
+	}()
 
 	yamlData := []byte(`
 project:
@@ -853,14 +859,20 @@ services:
 
 				// Set HOME to our temp dir
 				originalHome := os.Getenv("HOME")
-				os.Setenv("HOME", tempDir)
-				defer os.Setenv("HOME", originalHome)
+
+				_ = os.Setenv("HOME", tempDir)
+
+				defer func(orig string) {
+					_ = os.Setenv("HOME", orig)
+				}(originalHome)
 			}
 
 			// Set up environment variables
 			for k, v := range tt.envVars {
-				os.Setenv(k, v)
-				defer os.Unsetenv(k)
+				_ = os.Setenv(k, v)
+				defer func(key string) {
+					_ = os.Unsetenv(key)
+				}(k)
 			}
 
 			got, err := ParseConfig([]byte(tt.yaml))
@@ -870,17 +882,21 @@ services:
 			}
 
 			require.NoError(t, err)
+
 			if tt.want.Server.User == "" {
 				// If test expects empty user, replace with current user
 				currentUser, err := user.Current()
 				require.NoError(t, err)
+
 				tt.want.Server.User = currentUser.Username
 			}
+
 			if strings.Contains(tt.name, "without ssh_key") {
 				// For the no-ssh-key case, we just check that some key was found
 				assert.NotEmpty(t, got.Server.SSHKey)
 				tt.want.Server.SSHKey = got.Server.SSHKey
 			}
+
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -1016,8 +1032,10 @@ func TestExpandWithEnvAndDefault(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set up environment variables
 			for k, v := range tt.envVars {
-				os.Setenv(k, v)
-				defer os.Unsetenv(k)
+				_ = os.Setenv(k, v)
+				defer func(key string) {
+					_ = os.Unsetenv(key)
+				}(k)
 			}
 
 			got, err := expandWithEnvAndDefault(tt.input)
@@ -1068,6 +1086,7 @@ local: "echo 'local'"
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got HookItem
+
 			err := yaml.Unmarshal([]byte(tt.yaml), &got)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -1089,8 +1108,12 @@ func TestFindDefaultSSHKey(t *testing.T) {
 
 	// Save original HOME and restore it after test
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+
+	_ = os.Setenv("HOME", tempDir)
+
+	defer func(orig string) {
+		_ = os.Setenv("HOME", orig)
+	}(originalHome)
 
 	// Test when no keys exist
 	_, err = findDefaultSSHKey()

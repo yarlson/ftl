@@ -61,6 +61,7 @@ func (dm *DockerManager) GetContainerStatus(networkName, serviceName string) (Co
 		if strings.Contains(err.Error(), "no container found") {
 			return ContainerStatusNotFound, nil
 		}
+
 		return ContainerStatusError, fmt.Errorf("failed to get container details: %w", err)
 	}
 
@@ -77,6 +78,7 @@ func (dm *DockerManager) GetContainerID(networkName, serviceName string) (string
 	if err != nil {
 		return "", err
 	}
+
 	return details.ID, nil
 }
 
@@ -123,6 +125,7 @@ func (dm *DockerManager) CheckContainerHealth(containerID string, hc *config.Ser
 		if err == nil && strings.TrimSpace(output) == "healthy" {
 			return nil
 		}
+
 		time.Sleep(hc.Interval)
 	}
 
@@ -135,6 +138,7 @@ func (dm *DockerManager) CheckContainerHealth(containerID string, hc *config.Ser
 	if len(lines) > 20 {
 		lines = lines[len(lines)-20:]
 	}
+
 	trimmedOutput := strings.Join(lines, "\n")
 
 	colorCodeRegex := regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
@@ -150,6 +154,7 @@ func (dm *DockerManager) StartContainer(containerID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to start container %s: %v", containerID, err)
 	}
+
 	return nil
 }
 
@@ -179,6 +184,7 @@ func (dm *DockerManager) CreateAndRunContainer(networkName string, svc *config.S
 		if unicode.IsLetter(rune(vol[0])) {
 			vol = fmt.Sprintf("%s-%s", networkName, vol)
 		}
+
 		args = append(args, "-v", vol)
 	}
 
@@ -191,6 +197,7 @@ func (dm *DockerManager) CreateAndRunContainer(networkName string, svc *config.S
 			"--health-timeout", fmt.Sprintf("%ds", int(svc.HealthCheck.Timeout.Seconds())),
 		}
 	}
+
 	if svc.Container != nil && svc.Container.HealthCheck != nil {
 		healthArgs = []string{
 			"--health-cmd", svc.Container.HealthCheck.Cmd,
@@ -200,18 +207,22 @@ func (dm *DockerManager) CreateAndRunContainer(networkName string, svc *config.S
 		if svc.Container.HealthCheck.Timeout != "" {
 			healthArgs = append(healthArgs, "--health-timeout", svc.Container.HealthCheck.Timeout)
 		}
+
 		if svc.Container.HealthCheck.StartPeriod != "" {
 			healthArgs = append(healthArgs, "--health-start-period", svc.Container.HealthCheck.StartPeriod)
 		}
+
 		if svc.Container.HealthCheck.StartTimeout != "" {
 			healthArgs = append(healthArgs, "--health-start-timeout", svc.Container.HealthCheck.StartTimeout)
 		}
 	}
+
 	args = append(args, healthArgs...)
 
 	for _, port := range svc.LocalPorts {
 		args = append(args, "-p", fmt.Sprintf("127.0.0.1:%d:%d", port, port))
 	}
+
 	for _, forward := range svc.Forwards {
 		args = append(args, "-p", forward)
 	}
@@ -220,6 +231,7 @@ func (dm *DockerManager) CreateAndRunContainer(networkName string, svc *config.S
 	if err != nil {
 		return fmt.Errorf("failed to generate config hash: %w", err)
 	}
+
 	args = append(args, "--label", fmt.Sprintf("ftl.config-hash=%s", hash))
 
 	if len(svc.Entrypoint) > 0 {
@@ -230,16 +242,19 @@ func (dm *DockerManager) CreateAndRunContainer(networkName string, svc *config.S
 	if image == "" {
 		image = fmt.Sprintf("%s-%s", networkName, svc.Name)
 	}
+
 	args = append(args, image)
 
 	if svc.Command != "" {
 		args = append(args, svc.Command)
 	}
+
 	if len(svc.CommandSlice) > 0 {
 		args = append(args, svc.CommandSlice...)
 	}
 
 	_, err = dm.runCommand(context.Background(), "docker", args...)
+
 	return err
 }
 
@@ -258,6 +273,7 @@ func (dm *DockerManager) ContainerNeedsUpdate(networkName string, svc *config.Se
 	if svc.Image == "" && svc.ImageUpdated {
 		return true, nil
 	}
+
 	if svc.Image != "" && details.Image != imageID {
 		return true, nil
 	}
@@ -266,6 +282,7 @@ func (dm *DockerManager) ContainerNeedsUpdate(networkName string, svc *config.Se
 	if err != nil {
 		return false, fmt.Errorf("failed to generate config hash: %w", err)
 	}
+
 	return details.Config.Labels["ftl.config-hash"] != configHash, nil
 }
 
@@ -280,10 +297,12 @@ func (dm *DockerManager) runCommand(ctx context.Context, command string, args ..
 	if err != nil {
 		return "", fmt.Errorf("failed to run command: %w", err)
 	}
+
 	outputBytes, readErr := io.ReadAll(output)
 	if readErr != nil {
 		return "", fmt.Errorf("failed to read command output: %v (original error: %w)", readErr, err)
 	}
+
 	return strings.TrimSpace(string(outputBytes)), nil
 }
 
@@ -293,9 +312,11 @@ func (dm *DockerManager) fetchImageID(imageName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	if strings.Contains(output, "Error: No such ") {
 		return "", nil
 	}
+
 	return strings.TrimSpace(output), nil
 }
 
@@ -305,10 +326,12 @@ func (dm *DockerManager) PullImage(imageName string) error {
 	if err != nil {
 		return err
 	}
+
 	_, err = dm.runCommand(context.Background(), "docker", "images", "--no-trunc", "--format={{.ID}}", imageName)
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -325,6 +348,7 @@ func (dm *DockerManager) networkExists(networkName string) (bool, error) {
 			return true, nil
 		}
 	}
+
 	return false, nil
 }
 

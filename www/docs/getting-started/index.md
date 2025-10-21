@@ -42,7 +42,6 @@ Before getting started with FTL, ensure you have:
 ## System Requirements
 
 - **Local Machine:**
-
   - macOS, Linux, or Windows with WSL2
   - Docker Desktop or Docker Engine
   - SSH client

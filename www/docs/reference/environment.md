@@ -82,13 +82,11 @@ services:
 ## Best Practices
 
 1. **Security**
-
    - Never commit sensitive values directly in configuration files
    - Use required variables (`${VAR_NAME}`) for sensitive information
    - Use optional variables with defaults for non-sensitive configuration
 
 2. **Defaults**
-
    - Provide sensible defaults for optional variables
    - Document the implications of default values
    - Use defaults for development-friendly configurations

@@ -75,6 +75,7 @@ func (d *Deployment) Deploy(ctx context.Context, project string, cfg *config.Con
 
 	if hasLocalHooks(cfg) {
 		spinner.UpdateMessage("Starting tunnels for local hooks...")
+
 		if err := d.startTunnels(tunnelCtx, cfg); err != nil {
 			return fmt.Errorf("failed to start tunnels: %w", err)
 		}
@@ -132,6 +133,7 @@ func (d *Deployment) makeProjectFolder(projectName string) error {
 	}
 
 	_, err = d.runCommand(context.Background(), "mkdir", "-p", projectPath)
+
 	return err
 }
 
@@ -153,6 +155,7 @@ func (d *Deployment) updateImage(project string, service *config.Service) error 
 		if err != nil {
 			return err
 		}
+
 		service.ImageUpdated = updated
 	}
 

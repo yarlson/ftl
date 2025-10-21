@@ -36,6 +36,7 @@ func NewImageSync(cfg Config, runner *remote.Runner) *ImageSync {
 	if cfg.MaxParallel <= 0 {
 		cfg.MaxParallel = 4
 	}
+
 	if cfg.LocalStore == "" {
 		cfg.LocalStore = filepath.Join(os.Getenv("HOME"), "docker-images")
 	}
@@ -82,19 +83,23 @@ func (s *ImageSync) Sync(ctx context.Context, image string) (bool, error) {
 
 // CompareImages checks if the image needs to be synced by comparing local and remote versions.
 func (s *ImageSync) CompareImages(ctx context.Context, image string) (bool, error) {
-	var localInspect, remoteInspect *ImageData
-	var localErr, remoteErr error
-	var wg sync.WaitGroup
+	var (
+		localInspect, remoteInspect *ImageData
+		localErr, remoteErr         error
+		wg                          sync.WaitGroup
+	)
 
 	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
+
 		localInspect, localErr = s.inspectLocalImage(image)
 	}()
 
 	go func() {
 		defer wg.Done()
+
 		remoteInspect, remoteErr = s.inspectRemoteImage(ctx, image)
 	}()
 
@@ -109,6 +114,7 @@ func (s *ImageSync) CompareImages(ctx context.Context, image string) (bool, erro
 	}
 
 	imagesEqual := compareImageData(localInspect, remoteInspect)
+
 	return !imagesEqual, nil
 }
 
@@ -144,6 +150,7 @@ type ImageData struct {
 
 func (s *ImageSync) inspectLocalImage(image string) (*ImageData, error) {
 	cmd := exec.Command("docker", "image", "inspect", image)
+
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("docker inspect failed: %w", err)
@@ -166,7 +173,10 @@ func (s *ImageSync) inspectRemoteImage(ctx context.Context, image string) (*Imag
 	if err != nil {
 		return nil, err
 	}
-	defer outputReader.Close()
+
+	defer func() {
+		_ = outputReader.Close()
+	}()
 
 	output, err := io.ReadAll(outputReader)
 	if err != nil {
@@ -206,6 +216,7 @@ func (s *ImageSync) exportAndExtractImage(ctx context.Context, image string) err
 	}
 
 	tarPath := filepath.Join(localPath, "image.tar")
+
 	cmd := exec.Command("docker", "save", image, "-o", tarPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to save image: %w", err)
@@ -223,20 +234,27 @@ func extractTar(ctx context.Context, tarPath, destPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open tar file: %w", err)
 	}
-	defer file.Close()
+
+	defer func() {
+		_ = file.Close()
+	}()
 
 	var tr *tar.Reader
 
 	// Check if the file is gzipped
 	gzr, err := gzip.NewReader(file)
 	if err == nil {
-		defer gzr.Close()
+		defer func() {
+			_ = gzr.Close()
+		}()
+
 		tr = tar.NewReader(gzr)
 	} else {
 		// If not gzipped, reset the file pointer and read as a regular tar
 		if _, err := file.Seek(0, 0); err != nil {
 			return fmt.Errorf("failed to reset file pointer: %w", err)
 		}
+
 		tr = tar.NewReader(file)
 	}
 
@@ -251,6 +269,7 @@ func extractTar(ctx context.Context, tarPath, destPath string) error {
 		if err == io.EOF {
 			break // End of archive
 		}
+
 		if err != nil {
 			return fmt.Errorf("tar reading error: %w", err)
 		}
@@ -303,28 +322,36 @@ func extractFile(tr *tar.Reader, target string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", target, err)
 	}
-	defer f.Close()
+
+	defer func() {
+		_ = f.Close()
+	}()
 
 	if _, err := io.Copy(f, tr); err != nil {
 		return fmt.Errorf("failed to write file %s: %w", target, err)
 	}
+
 	return nil
 }
 
 func (s *ImageSync) syncBlobs(ctx context.Context, image string) error {
-	var localBlobs, remoteBlobs []string
-	var localErr, remoteErr error
-	var wg sync.WaitGroup
+	var (
+		localBlobs, remoteBlobs []string
+		localErr, remoteErr     error
+		wg                      sync.WaitGroup
+	)
 
 	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
+
 		localBlobs, localErr = s.listLocalBlobs(image)
 	}()
 
 	go func() {
 		defer wg.Done()
+
 		remoteBlobs, remoteErr = s.listRemoteBlobs(ctx, image)
 	}()
 
@@ -333,6 +360,7 @@ func (s *ImageSync) syncBlobs(ctx context.Context, image string) error {
 	if localErr != nil {
 		return fmt.Errorf("failed to list local blobs: %w", localErr)
 	}
+
 	if remoteErr != nil {
 		return fmt.Errorf("failed to list remote blobs: %w", remoteErr)
 	}
@@ -344,6 +372,7 @@ func (s *ImageSync) syncBlobs(ctx context.Context, image string) error {
 
 	// Determine blobs to transfer
 	var blobsToTransfer []string
+
 	for _, blob := range localBlobs {
 		if !contains(remoteBlobs, blob) {
 			blobsToTransfer = append(blobsToTransfer, blob)
@@ -360,14 +389,18 @@ func (s *ImageSync) transferBlobs(ctx context.Context, image string, blobs []str
 	}
 
 	var wg sync.WaitGroup
+
 	errChan := make(chan error, len(blobs))
 	semaphore := make(chan struct{}, s.cfg.MaxParallel)
 
 	for _, blob := range blobs {
 		wg.Add(1)
+
 		go func(blob string) {
 			defer wg.Done()
+
 			semaphore <- struct{}{}
+
 			defer func() { <-semaphore }()
 
 			if err := s.transferBlob(ctx, image, blob); err != nil {
@@ -398,7 +431,10 @@ func (s *ImageSync) loadRemoteImage(ctx context.Context, image string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load remote image: %w", err)
 	}
-	defer outputReader.Close()
+
+	defer func() {
+		_ = outputReader.Close()
+	}()
 
 	_, err = io.ReadAll(outputReader)
 	if err != nil {
@@ -416,6 +452,7 @@ func compareImageData(local, remote *ImageData) bool {
 	if local == nil && remote == nil {
 		return true
 	}
+
 	if local == nil || remote == nil {
 		return false
 	}
@@ -452,6 +489,7 @@ func contains(slice []string, item string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -466,6 +504,7 @@ func (s *ImageSync) listLocalBlobs(image string) ([]string, error) {
 	}
 
 	var blobs []string
+
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			blobs = append(blobs, entry.Name())
@@ -484,7 +523,10 @@ func (s *ImageSync) listRemoteBlobs(ctx context.Context, image string) ([]string
 	if err != nil {
 		return nil, nil
 	}
-	defer outputReader.Close()
+
+	defer func() {
+		_ = outputReader.Close()
+	}()
 
 	data, err := io.ReadAll(outputReader)
 	if err != nil {
@@ -492,6 +534,7 @@ func (s *ImageSync) listRemoteBlobs(ctx context.Context, image string) ([]string
 	}
 
 	blobs := strings.Fields(string(data))
+
 	return blobs, nil
 }
 
@@ -518,12 +561,15 @@ func (s *ImageSync) transferMetadata(ctx context.Context, image string) error {
 	metadataFiles := []string{"index.json", "manifest.json", "oci-layout"}
 
 	var wg sync.WaitGroup
+
 	errChan := make(chan error, len(metadataFiles))
 
 	for _, file := range metadataFiles {
 		wg.Add(1)
+
 		go func(file string) {
 			defer wg.Done()
+
 			localPath := filepath.Join(localDir, file)
 			remotePath := filepath.Join(remoteDir, file)
 

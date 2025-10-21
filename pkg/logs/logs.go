@@ -71,6 +71,7 @@ func (h *LogEntryHeap) Pop() interface{} {
 	n := len(old)
 	x := old[n-1]
 	*h = old[0 : n-1]
+
 	return x
 }
 
@@ -86,13 +87,16 @@ func (l *Logger) FetchLogs(ctx context.Context, project string, services []strin
 // fetchAndSortLogs fetches logs from services, sorts them by timestamp, and prints them.
 func (l *Logger) fetchAndSortLogs(ctx context.Context, project string, services []string, tail int) error {
 	var wg sync.WaitGroup
+
 	logEntries := make([]LogEntry, 0)
+
 	var mu sync.Mutex
 
 	serviceColorMap := assignColorsToServices(services)
 
 	for _, service := range services {
 		wg.Add(1)
+
 		go func(svc string) {
 			defer wg.Done()
 
@@ -104,6 +108,7 @@ func (l *Logger) fetchAndSortLogs(ctx context.Context, project string, services 
 				console.Error(fmt.Sprintf("Failed to check if service %s exists: %v", svc, err))
 				return
 			}
+
 			if !exists {
 				console.Warning(fmt.Sprintf("Service %s is not running on the server", svc))
 				return
@@ -114,6 +119,7 @@ func (l *Logger) fetchAndSortLogs(ctx context.Context, project string, services 
 			if tail >= 0 {
 				cmdArgs = append(cmdArgs, fmt.Sprintf("--tail=%d", tail))
 			}
+
 			cmdArgs = append(cmdArgs, containerName)
 
 			// Run the docker logs command
@@ -122,22 +128,30 @@ func (l *Logger) fetchAndSortLogs(ctx context.Context, project string, services 
 				console.Error(fmt.Sprintf("Failed to fetch logs for service %s: %v", svc, err))
 				return
 			}
-			defer reader.Close()
+
+			defer func() {
+				_ = reader.Close()
+			}()
 
 			color := serviceColorMap[svc]
 
 			scanner := bufio.NewScanner(reader)
 			for scanner.Scan() {
 				line := scanner.Text()
+
 				entry, err := parseLogLine(line, svc, color)
 				if err != nil {
 					// Ignore lines that cannot be parsed
 					continue
 				}
+
 				mu.Lock()
+
 				logEntries = append(logEntries, entry)
+
 				mu.Unlock()
 			}
+
 			if err := scanner.Err(); err != nil && err != io.EOF {
 				console.Error(fmt.Sprintf("Error reading logs for service %s: %v", svc, err))
 			}
@@ -170,6 +184,7 @@ func (l *Logger) streamLogs(ctx context.Context, project string, services []stri
 	}
 
 	streams := make(map[string]*logStream)
+
 	var wg sync.WaitGroup
 
 	// Start a goroutine for each service to read logs
@@ -179,6 +194,7 @@ func (l *Logger) streamLogs(ctx context.Context, project string, services []stri
 		streams[service] = &logStream{entries: entries, done: done}
 
 		wg.Add(1)
+
 		go func(svc string) {
 			defer wg.Done()
 			defer close(entries)
@@ -190,6 +206,7 @@ func (l *Logger) streamLogs(ctx context.Context, project string, services []stri
 				console.Error(fmt.Sprintf("Failed to check if service %s exists: %v", svc, err))
 				return
 			}
+
 			if !exists {
 				console.Warning(fmt.Sprintf("Service %s is not running on the server", svc))
 				return
@@ -200,6 +217,7 @@ func (l *Logger) streamLogs(ctx context.Context, project string, services []stri
 			if tail >= 0 {
 				cmdArgs = append(cmdArgs, fmt.Sprintf("--tail=%d", tail))
 			}
+
 			cmdArgs = append(cmdArgs, "-f", svc)
 
 			// Run the docker logs command
@@ -208,24 +226,30 @@ func (l *Logger) streamLogs(ctx context.Context, project string, services []stri
 				console.Error(fmt.Sprintf("Failed to fetch logs for service %s: %v", svc, err))
 				return
 			}
-			defer reader.Close()
+
+			defer func() {
+				_ = reader.Close()
+			}()
 
 			color := serviceColorMap[svc]
 
 			scanner := bufio.NewScanner(reader)
 			for scanner.Scan() {
 				line := scanner.Text()
+
 				entry, err := parseLogLine(line, svc, color)
 				if err != nil {
 					// Ignore lines that cannot be parsed
 					continue
 				}
+
 				select {
 				case entries <- entry:
 				case <-ctx.Done():
 					return
 				}
 			}
+
 			if err := scanner.Err(); err != nil && err != io.EOF {
 				console.Error(fmt.Sprintf("Error reading logs for service %s: %v", svc, err))
 			}
@@ -259,6 +283,7 @@ func (l *Logger) streamLogs(ctx context.Context, project string, services []stri
 			}
 			// Sleep briefly to wait for new log entries
 			time.Sleep(100 * time.Millisecond)
+
 			continue
 		}
 
@@ -270,6 +295,7 @@ func (l *Logger) streamLogs(ctx context.Context, project string, services []stri
 
 	// Wait for all goroutines to finish
 	wg.Wait()
+
 	return nil
 }
 
@@ -280,6 +306,7 @@ func parseLogLine(line, service string, color string) (LogEntry, error) {
 	if idx == -1 {
 		return LogEntry{}, fmt.Errorf("invalid log line format")
 	}
+
 	timestampStr := line[:idx]
 	message := line[idx+1:]
 
@@ -299,10 +326,12 @@ func parseLogLine(line, service string, color string) (LogEntry, error) {
 // assignColorsToServices assigns colors to services
 func assignColorsToServices(services []string) map[string]string {
 	serviceColorMap := make(map[string]string)
+
 	for i, service := range services {
 		color := serviceColors[i%len(serviceColors)]
 		serviceColorMap[service] = color
 	}
+
 	return serviceColorMap
 }
 
@@ -312,7 +341,10 @@ func (l *Logger) containerExists(ctx context.Context, containerName string) (boo
 	if err != nil {
 		return false, fmt.Errorf("failed to list containers: %w", err)
 	}
-	defer outputReader.Close()
+
+	defer func() {
+		_ = outputReader.Close()
+	}()
 
 	containers := parseOutput(outputReader)
 	for _, name := range containers {
@@ -320,15 +352,18 @@ func (l *Logger) containerExists(ctx context.Context, containerName string) (boo
 			return true, nil
 		}
 	}
+
 	return false, nil
 }
 
 // parseOutput reads lines from the output reader.
 func parseOutput(output io.Reader) []string {
 	scanner := bufio.NewScanner(output)
+
 	var lines []string
 	for scanner.Scan() {
 		lines = append(lines, scanner.Text())
 	}
+
 	return lines
 }

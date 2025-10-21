@@ -62,6 +62,7 @@ func GenerateNginxConfig(cfg *config.Config) (string, error) {
 `))
 
 	var buffer bytes.Buffer
+
 	err := tmpl.Execute(&buffer, cfg)
 	if err != nil {
 		return "", err

@@ -32,6 +32,7 @@ func init() {
 
 func runDeploy(cmd *cobra.Command, args []string) {
 	pDeploy := pin.New("Deploying", pin.WithSpinnerColor(pin.ColorCyan))
+
 	cancelDeploy := pDeploy.Start(context.Background())
 	defer cancelDeploy()
 
@@ -73,7 +74,12 @@ func deployToServer(project string, cfg *config.Config, spinner *pin.Pin) error 
 	if err != nil {
 		return fmt.Errorf("failed to connect to server %s: %w", hostname, err)
 	}
-	defer runner.Close()
+
+	defer func() {
+		if err := runner.Close(); err != nil {
+			spinner.UpdateMessage(fmt.Sprintf("Warning: failed to close runner: %v", err))
+		}
+	}()
 
 	spinner.UpdateMessage("Connected to server " + hostname + ". Creating temporary directory for docker sync...")
 	// Create temp directory for docker sync
@@ -95,6 +101,7 @@ func deployToServer(project string, cfg *config.Config, spinner *pin.Pin) error 
 	defer cancel()
 
 	spinner.UpdateMessage("Starting deployment process...")
+
 	if err := deploy.Deploy(ctx, project, cfg, spinner); err != nil {
 		return err
 	}
@@ -104,6 +111,7 @@ func deployToServer(project string, cfg *config.Config, spinner *pin.Pin) error 
 
 func connectToServer(server *config.Server) (*remote.Runner, error) {
 	sshKeyPath := filepath.Join(os.Getenv("HOME"), ".ssh", filepath.Base(server.SSHKey))
+
 	sshClient, _, err := ssh.FindKeyAndConnectWithUser(server.Host, server.Port, server.User, sshKeyPath)
 	if err != nil {
 		return nil, err

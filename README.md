@@ -192,14 +192,12 @@ Visit our [ftl-examples](https://github.com/yarlson/ftl-examples) repository for
 ### Common Issues
 
 1. Configuration Validation Errors
-
    - Ensure all required fields are present
    - Check port numbers are valid
    - Verify file paths exist
    - Confirm environment variables are properly defined
 
 2. Registry Authentication Failures
-
    - FTL currently supports only username/password authentication
    - Token-based authentication is not supported
 

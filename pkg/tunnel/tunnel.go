@@ -30,10 +30,12 @@ func StartTunnels(
 	}
 
 	var wg sync.WaitGroup
+
 	errorChan := make(chan error, len(tunnels))
 
 	for _, t := range tunnels {
 		wg.Add(1)
+
 		go func(tun Config) {
 			defer wg.Done()
 
@@ -64,6 +66,7 @@ func StartTunnels(
 
 func CollectDependencyTunnels(cfg *config.Config) []Config {
 	var tunnels []Config
+
 	for _, dep := range cfg.Dependencies {
 		for _, port := range dep.Ports {
 			tunnels = append(tunnels, Config{
@@ -72,5 +75,6 @@ func CollectDependencyTunnels(cfg *config.Config) []Config {
 			})
 		}
 	}
+
 	return tunnels
 }

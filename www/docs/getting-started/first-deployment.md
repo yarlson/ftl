@@ -195,7 +195,6 @@ Here's a complete example of deploying a simple web application:
 ## Deployment Workflow Tips
 
 1. **Start Small**
-
    - Begin with a simple service configuration
    - Add dependencies and complexity gradually
    - Test each addition separately

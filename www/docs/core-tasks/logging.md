@@ -59,12 +59,10 @@ ftl logs my-app -n 150
 FTL collects logs from:
 
 1. **Application Services**
-
    - Main application containers
    - Custom service containers
 
 2. **Dependencies**
-
    - Database containers
    - Cache services
    - Other supporting services
@@ -76,13 +74,11 @@ FTL collects logs from:
 ## Best Practices
 
 1. **Log Monitoring**
-
    - Use `-f` flag during deployments
    - Monitor application startup
    - Track dependency initialization
 
 2. **Log Analysis**
-
    - Check logs after deployments
    - Monitor for error patterns
    - Review performance issues

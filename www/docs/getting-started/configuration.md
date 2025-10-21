@@ -170,12 +170,10 @@ FTL supports dynamic environment variable substitution throughout your configura
    ```
 
 2. **Secure Sensitive Data**
-
    - Use environment variables to manage secrets.
    - Never commit actual secrets to version control.
 
 3. **Organize Services**
-
    - Group related services together.
    - Use clear, descriptive names.
    - Document service dependencies and required environment variables.

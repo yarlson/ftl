@@ -20,13 +20,11 @@ ftl tunnels
 SSH tunneling is useful for:
 
 1. **Local Development**
-
    - Connect to remote databases
    - Access remote services
    - Test against production-like environments
 
 2. **Debugging**
-
    - Inspect database contents
    - Monitor service metrics
    - Troubleshoot issues
@@ -62,13 +60,11 @@ psql -h localhost -p <mapped_port> -U postgres
 ## Best Practices
 
 1. **Security**
-
    - Use tunnels only during development
    - Close tunnels when not needed
    - Keep credentials secure
 
 2. **Usage**
-
    - Document mapped ports
    - Use consistent port mappings
    - Monitor tunnel status

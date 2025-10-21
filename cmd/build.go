@@ -54,13 +54,17 @@ func runBuild(cmd *cobra.Command, args []string) {
 // buildAndPushServices builds and pushes all services concurrently.
 func buildAndPushServices(ctx context.Context, project string, services []config.Service, builder *build.Build, skipPush bool) error {
 	var wg sync.WaitGroup
+
 	errChan := make(chan error, len(services))
 
 	for _, svc := range services {
 		wg.Add(1)
+
 		go func(svc config.Service) {
 			defer wg.Done()
+
 			serviceName := svc.Name
+
 			image := svc.Image
 			if image == "" {
 				image = fmt.Sprintf("%s-%s", project, serviceName)

@@ -99,7 +99,6 @@ services:
 Docker uses a layer cache to speed up builds. Understanding how it works can significantly improve build times:
 
 1. **Layer Order Matters**
-
    - Put infrequently changed commands early in Dockerfile
    - Place frequently changed commands (like copying source code) later
 
@@ -138,33 +137,28 @@ Benefits:
 ## Best Practices
 
 1. **Choose the Right Deployment Method**
-
    - Use direct SSH transfer for simpler setups
    - Use registry-based deployment when:
      - You need image versioning
      - You require image scanning/signing
 
 2. **Registry Configuration**
-
    - Use username/password authentication
    - Avoid token-based registries (currently unsupported)
    - Consider registry proximity to your server
 
 3. **Optimize Dockerfiles**
-
    - Use multi-stage builds
    - Minimize layer count
    - Order commands by change frequency
    - Use specific base image tags
 
 4. **Image Tags**
-
    - Use meaningful tags
    - Consider versioning strategy
    - Document tagging conventions
 
 5. **Build Performance**
-
    - Leverage Docker layer caching
    - Use `.dockerignore` effectively
    - Keep source directory clean

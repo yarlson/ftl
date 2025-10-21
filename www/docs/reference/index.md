@@ -21,7 +21,6 @@ This section provides detailed technical documentation for FTL's core components
 FTL supports two distinct approaches for managing Docker images:
 
 1. **Direct SSH Transfer**
-
    - Default method when no `image` field is specified
    - Builds images locally
    - Implements custom layer caching

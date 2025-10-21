@@ -46,6 +46,7 @@ func NewSSHClientWithKey(host string, port int, user string, key []byte) (*ssh.C
 	}
 
 	client := ssh.NewClient(sshConn, chans, reqs)
+
 	return client, nil
 }
 
@@ -79,6 +80,7 @@ func FindSSHKey(keyPath string) ([]byte, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to get home directory: %w", err)
 			}
+
 			keyPath = filepath.Join(home, keyPath[1:])
 		}
 
@@ -93,6 +95,7 @@ func FindSSHKey(keyPath string) ([]byte, error) {
 	keyNames := []string{"id_rsa", "id_ecdsa", "id_ed25519"}
 	for _, name := range keyNames {
 		path := filepath.Join(sshDir, name)
+
 		key, err := os.ReadFile(path)
 		if err == nil {
 			return key, nil
@@ -139,12 +142,16 @@ func CreateSSHTunnel(ctx context.Context, host string, port int, user, keyPath, 
 	if err != nil {
 		return fmt.Errorf("failed to establish SSH connection: %v", err)
 	}
-	defer client.Close()
+
+	defer func() {
+		_ = client.Close()
+	}()
 
 	// Start keep-alive routine
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ticker.C:
@@ -163,7 +170,10 @@ func CreateSSHTunnel(ctx context.Context, host string, port int, user, keyPath, 
 	if err != nil {
 		return fmt.Errorf("failed to listen on local port %s: %v", localPort, err)
 	}
-	defer localListener.Close()
+
+	defer func() {
+		_ = localListener.Close()
+	}()
 
 	for {
 		select {
@@ -179,7 +189,9 @@ func CreateSSHTunnel(ctx context.Context, host string, port int, user, keyPath, 
 			remoteConn, err := client.Dial("tcp", remoteAddr)
 			if err != nil {
 				fmt.Printf("Failed to dial remote address %s: %v\n", remoteAddr, err)
-				localConn.Close()
+
+				_ = localConn.Close()
+
 				continue
 			}
 
@@ -191,8 +203,12 @@ func CreateSSHTunnel(ctx context.Context, host string, port int, user, keyPath, 
 
 // handleConnection copies data between local and remote connections
 func handleConnection(localConn, remoteConn net.Conn) {
-	defer localConn.Close()
-	defer remoteConn.Close()
+	defer func() {
+		_ = localConn.Close()
+	}()
+	defer func() {
+		_ = remoteConn.Close()
+	}()
 
 	// Use WaitGroup to wait for both directions to finish
 	var wg sync.WaitGroup
@@ -201,6 +217,7 @@ func handleConnection(localConn, remoteConn net.Conn) {
 	// Copy from local to remote
 	go func() {
 		defer wg.Done()
+
 		_, err := io.Copy(remoteConn, localConn)
 		if err != nil && !isClosedNetworkError(err) {
 			fmt.Printf("Error copying from local to remote: %v\n", err)
@@ -210,6 +227,7 @@ func handleConnection(localConn, remoteConn net.Conn) {
 	// Copy from remote to local
 	go func() {
 		defer wg.Done()
+
 		_, err := io.Copy(localConn, remoteConn)
 		if err != nil && !isClosedNetworkError(err) {
 			fmt.Printf("Error copying from remote to local: %v\n", err)
@@ -225,14 +243,18 @@ func isClosedNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	if err == io.EOF {
 		return true
 	}
+
 	if netErr, ok := err.(*net.OpError); ok && netErr.Err.Error() == "use of closed network connection" {
 		return true
 	}
+
 	if strings.Contains(err.Error(), "use of closed network connection") {
 		return true
 	}
+
 	return false
 }

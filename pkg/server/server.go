@@ -24,54 +24,72 @@ type DockerCredentials struct {
 // Setup performs the server setup with progress updates.
 func Setup(ctx context.Context, cfg *config.Config, dockerCreds DockerCredentials, newUserPassword string, spinner *pin.Pin) error {
 	spinner.UpdateMessage("Starting server setup on " + cfg.Server.Host + "...")
+
 	if err := setupServer(ctx, cfg.Server, dockerCreds, newUserPassword, spinner); err != nil {
 		return fmt.Errorf("[%s] Setup failed: %w", cfg.Server.Host, err)
 	}
+
 	spinner.UpdateMessage("Server setup completed successfully.")
+
 	return nil
 }
 
 func setupServer(ctx context.Context, cfg *config.Server, dockerCreds DockerCredentials, newUserPassword string, spinner *pin.Pin) error {
 	spinner.UpdateMessage("Establishing SSH connection to server " + cfg.Host + " as root...")
+
 	sshClient, rootKey, err := ssh.FindKeyAndConnectWithUser(cfg.Host, cfg.Port, "root", cfg.SSHKey)
 	if err != nil {
 		return fmt.Errorf("failed to connect via SSH: %w", err)
 	}
+
 	spinner.UpdateMessage("SSH connection established.")
-	defer sshClient.Close()
+
+	defer func() {
+		_ = sshClient.Close()
+	}()
 
 	runner := remote.NewRunner(sshClient)
 	cfg.RootSSHKey = string(rootKey)
 
 	spinner.UpdateMessage("Installing required software...")
+
 	if err := installSoftware(ctx, runner); err != nil {
 		return fmt.Errorf("installing software: %w", err)
 	}
+
 	spinner.UpdateMessage("Software installation complete.")
 
 	spinner.UpdateMessage("Configuring firewall...")
+
 	if err := configureFirewall(ctx, runner); err != nil {
 		return fmt.Errorf("configuring firewall: %w", err)
 	}
+
 	spinner.UpdateMessage("Firewall configuration complete.")
 
 	spinner.UpdateMessage("Creating user account " + cfg.User + "...")
+
 	if err := createUser(ctx, runner, cfg.User, newUserPassword); err != nil {
 		return fmt.Errorf("creating user: %w", err)
 	}
+
 	spinner.UpdateMessage("User account created.")
 
 	spinner.UpdateMessage("Setting up SSH key for user " + cfg.User + "...")
+
 	if err := setupSSHKey(ctx, runner, cfg); err != nil {
 		return fmt.Errorf("setting up SSH key: %w", err)
 	}
+
 	spinner.UpdateMessage("SSH key setup complete.")
 
 	if dockerCreds.Username != "" && dockerCreds.Password != "" {
 		spinner.UpdateMessage("Logging into Docker registry...")
+
 		if err := dockerLogin(ctx, runner, dockerCreds); err != nil {
 			return fmt.Errorf("docker login: %w", err)
 		}
+
 		spinner.UpdateMessage("Docker login successful.")
 	}
 
@@ -87,6 +105,7 @@ func installSoftware(ctx context.Context, runner *remote.Runner) error {
 		"apt-get update",
 		"apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin",
 	}
+
 	return runner.RunCommands(ctx, commands)
 }
 
@@ -100,6 +119,7 @@ func configureFirewall(ctx context.Context, runner *remote.Runner) error {
 		"ufw allow 443/tcp",
 		`echo "y" | ufw enable`,
 	}
+
 	return runner.RunCommands(ctx, commands)
 }
 
@@ -115,6 +135,7 @@ func createUser(ctx context.Context, runner *remote.Runner, user, password strin
 		fmt.Sprintf("echo '%s:%s' | chpasswd", user, password),
 		fmt.Sprintf("usermod -aG docker %s", user),
 	}
+
 	return runner.RunCommands(ctx, commands)
 }
 
@@ -140,12 +161,14 @@ func setupSSHKey(ctx context.Context, runner *remote.Runner, server *config.Serv
 		fmt.Sprintf("chmod 700 %s", sshDir),
 		fmt.Sprintf("chmod 600 %s", authKeysFile),
 	}
+
 	return runner.RunCommands(ctx, commands)
 }
 
 func dockerLogin(ctx context.Context, runner *remote.Runner, creds DockerCredentials) error {
 	command := fmt.Sprintf("echo '%s' | docker login -u %s --password-stdin", creds.Password, creds.Username)
 	_, err := runner.RunCommand(ctx, command)
+
 	return err
 }
 
@@ -155,8 +178,10 @@ func readSSHKey(keyPath string) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get home directory: %w", err)
 		}
+
 		keyPath = filepath.Join(homeDir, keyPath[1:])
 	}
+
 	return os.ReadFile(keyPath)
 }
 
@@ -165,5 +190,6 @@ func parsePublicKey(keyData []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse private key: %w", err)
 	}
+
 	return string(gossh.MarshalAuthorizedKey(privateKey.PublicKey())), nil
 }

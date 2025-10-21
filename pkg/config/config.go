@@ -126,6 +126,7 @@ func (h *HookItem) UnmarshalYAML(node *yaml.Node) error {
 		if err := node.Decode(&h.Remote); err != nil {
 			return err
 		}
+
 		return nil
 
 	case "!!map":
@@ -134,11 +135,14 @@ func (h *HookItem) UnmarshalYAML(node *yaml.Node) error {
 		//   remote: "echo 'Running remote'"
 		//   local: "echo 'Running local'"
 		type hookAlias HookItem
+
 		var temp hookAlias
 		if err := node.Decode(&temp); err != nil {
 			return err
 		}
+
 		*h = HookItem(temp)
+
 		return nil
 
 	default:
@@ -150,16 +154,19 @@ func (h *HookItem) UnmarshalYAML(node *yaml.Node) error {
 // then applies the provided version to the Image.
 func getDefaultConfig(baseName, version string) (*Dependency, bool) {
 	baseName = strings.ToLower(baseName)
+
 	dep, found := defaultConfigs[baseName]
 	if !found {
 		return nil, false
 	}
+
 	parts := strings.Split(dep.Image, ":")
 	if len(parts) == 2 {
 		dep.Image = parts[0] + ":" + version
 	} else {
 		dep.Image += ":" + version
 	}
+
 	return &dep, true
 }
 
@@ -167,7 +174,6 @@ func getDefaultConfig(baseName, version string) (*Dependency, bool) {
 // dependencies (like "mysql:8") and map-based dependencies, plus expands env vars.
 func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 	switch node.Tag {
-
 	case "!!str":
 		// If the node is just a string (e.g. "postgres:16"), parse it.
 		value := node.Value
@@ -186,8 +192,10 @@ func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 							base, err,
 						)
 					}
+
 					defaultDep.Env[i] = expanded
 				}
+
 				*d = *defaultDep
 			} else {
 				// fallback for unknown base (e.g., "foobar:1.0")
@@ -207,8 +215,10 @@ func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 							base, err,
 						)
 					}
+
 					defaultDep.Env[i] = expanded
 				}
+
 				*d = *defaultDep
 			} else {
 				// fallback for unknown base
@@ -216,11 +226,13 @@ func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 				d.Image = base
 			}
 		}
+
 		return nil
 
 	case "!!map":
 		// If the node is a map, decode into the struct in the usual way.
 		type dependencyAlias Dependency
+
 		var tmp dependencyAlias
 		if err := node.Decode(&tmp); err != nil {
 			return fmt.Errorf("failed to decode dependency map: %w", err)
@@ -234,9 +246,12 @@ func (d *Dependency) UnmarshalYAML(node *yaml.Node) error {
 					tmp.Name, err,
 				)
 			}
+
 			tmp.Env[i] = expanded
 		}
+
 		*d = Dependency(tmp)
+
 		return nil
 
 	default:
@@ -263,6 +278,7 @@ func expandWithEnvAndDefault(input string) (string, error) {
 			// capture the first error
 			expansionErr = err
 		}
+
 		return val
 	})
 
@@ -277,9 +293,11 @@ func expandOneVar(key string) (string, error) {
 		parts := strings.SplitN(key, ":-", 2)
 		envKey := parts[0]
 		defaultVal := parts[1]
+
 		if val, ok := os.LookupEnv(envKey); ok {
 			return val, nil
 		}
+
 		return defaultVal, nil
 	}
 
@@ -288,6 +306,7 @@ func expandOneVar(key string) (string, error) {
 		parts := strings.SplitN(key, ":?", 2)
 		envKey := parts[0]
 		errMsg := parts[1]
+
 		if val, ok := os.LookupEnv(envKey); ok {
 			return val, nil
 		}
@@ -340,6 +359,7 @@ func ParseConfig(data []byte) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current user: %w", err)
 		}
+
 		config.Server.User = currentUser.Username
 	}
 
@@ -349,6 +369,7 @@ func ParseConfig(data []byte) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("no SSH key specified and failed to find default key: %w", err)
 		}
+
 		config.Server.SSHKey = defaultKey
 	}
 
@@ -371,6 +392,7 @@ func ParseConfig(data []byte) (*Config, error) {
 	_ = validate.RegisterValidation("volume_reference", func(fl validator.FieldLevel) bool {
 		value := fl.Field().String()
 		parts := strings.Split(value, ":")
+
 		return len(parts) == 2 && parts[0] != "" && parts[1] != ""
 	})
 
@@ -385,6 +407,7 @@ func ParseConfig(data []byte) (*Config, error) {
 
 	// Only collect volumes if there are explicitly defined volumes or if we're using default configs
 	hasDefaultConfigs := false
+
 	for _, dep := range config.Dependencies {
 		if _, ok := defaultConfigs[strings.ToLower(dep.Name)]; ok {
 			hasDefaultConfigs = true
@@ -424,6 +447,7 @@ func ParseConfig(data []byte) (*Config, error) {
 		for name := range uniqueVolNames {
 			finalVols = append(finalVols, name)
 		}
+
 		sort.Strings(finalVols)
 		config.Volumes = finalVols
 	}
@@ -438,6 +462,7 @@ func extractNamedVolume(volRef string) string {
 	if len(parts) < 2 {
 		return ""
 	}
+
 	namePart := parts[0]
 	if len(namePart) == 0 {
 		return ""
@@ -457,12 +482,14 @@ func (s *Service) Hash() (string, error) {
 	service := *s
 	service.ImageUpdated = false
 	sortedService := service.sortServiceFields()
+
 	bytes, err := json.Marshal(sortedService)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal sorted service: %w", err)
 	}
 
 	hash := sha256.Sum256(bytes)
+
 	return hex.EncodeToString(hash[:]), nil
 }
 
@@ -495,9 +522,11 @@ func sortSlice(s reflect.Value) []interface{} {
 	for i := 0; i < s.Len(); i++ {
 		sorted[i] = s.Index(i).Interface()
 	}
+
 	sort.Slice(sorted, func(i, j int) bool {
 		return fmt.Sprintf("%v", sorted[i]) < fmt.Sprintf("%v", sorted[j])
 	})
+
 	return sorted
 }
 
@@ -506,6 +535,7 @@ func sortMap(m reflect.Value) map[string]interface{} {
 	for _, key := range m.MapKeys() {
 		sorted[key.String()] = m.MapIndex(key).Interface()
 	}
+
 	return sorted
 }
 

@@ -10,10 +10,12 @@ import (
 
 func (d *Deployment) deployDependencies(ctx context.Context, project string, dependencies []config.Dependency) error {
 	var wg sync.WaitGroup
+
 	errChan := make(chan error, len(dependencies))
 
 	for _, dep := range dependencies {
 		wg.Add(1)
+
 		go func(dep config.Dependency) {
 			defer wg.Done()
 
@@ -21,7 +23,6 @@ func (d *Deployment) deployDependencies(ctx context.Context, project string, dep
 				errChan <- fmt.Errorf("failed to deploy dependency %s: %w", dep.Name, err)
 				return
 			}
-
 		}(dep)
 	}
 

@@ -44,7 +44,10 @@ func (b *Build) Build(ctx context.Context, image, path string) error {
 	if err != nil {
 		return fmt.Errorf("failed to list images for cleanup: %w", err)
 	}
-	defer outputReader.Close()
+
+	defer func() {
+		_ = outputReader.Close()
+	}()
 
 	outputBytes, err := io.ReadAll(outputReader)
 	if err != nil {
@@ -57,6 +60,7 @@ func (b *Build) Build(ctx context.Context, image, path string) error {
 	}
 
 	args := append([]string{"rmi", "--force"}, imageIDs...)
+
 	_, err = b.runner.RunCommand(ctx, "docker", args...)
 	if err != nil {
 		return fmt.Errorf("failed to remove images: %w", err)

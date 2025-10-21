@@ -189,20 +189,17 @@ If services are inaccessible:
 ## Best Practices
 
 1. **Regular Updates**
-
    - Keep system packages updated
    - Regularly update Docker
    - Monitor security advisories
 
 2. **Security**
-
    - Use strong SSH keys
    - Implement fail2ban
    - Regular security audits
    - Keep ports minimal
 
 3. **Monitoring**
-
    - Set up disk space monitoring
    - Monitor system resources
    - Configure log rotation

@@ -35,6 +35,7 @@ func runTunnels(cmd *cobra.Command, args []string) {
 	if err != nil {
 		pTunnel.Fail(fmt.Sprintf("Failed to parse config file: %v", err))
 		cancelTunnel()
+
 		return
 	}
 
@@ -42,6 +43,7 @@ func runTunnels(cmd *cobra.Command, args []string) {
 	if len(tunnels) == 0 {
 		pTunnel.Fail("No dependencies with ports found in the configuration.")
 		cancelTunnel()
+
 		return
 	}
 
@@ -58,6 +60,7 @@ func runTunnels(cmd *cobra.Command, args []string) {
 	if err != nil {
 		pTunnel.Fail(fmt.Sprintf("Failed to establish tunnels: %v", err))
 		cancelTunnel()
+
 		return
 	}
 

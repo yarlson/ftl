@@ -13,10 +13,12 @@ import (
 
 func (d *Deployment) deployServices(ctx context.Context, project string, services []config.Service) error {
 	var wg sync.WaitGroup
+
 	errChan := make(chan error, len(services))
 
 	for _, service := range services {
 		wg.Add(1)
+
 		go func(service config.Service) {
 			defer wg.Done()
 
@@ -57,6 +59,7 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 		if err := d.installService(project, service); err != nil {
 			return fmt.Errorf("failed to install service %s: %w", service.Name, err)
 		}
+
 		return nil
 	}
 
@@ -69,6 +72,7 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 		if err := d.updateService(project, service); err != nil {
 			return fmt.Errorf("failed to update service %s due to image change: %w", service.Name, err)
 		}
+
 		return nil
 	}
 
@@ -77,6 +81,7 @@ func (d *Deployment) deployService(project string, service *config.Service) erro
 		if err := d.dockerManager.StartContainer(container); err != nil {
 			return fmt.Errorf("failed to start container %s: %w", service.Name, err)
 		}
+
 		return nil
 	}
 
@@ -114,6 +119,7 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 		if err := d.recreateService(project, service); err != nil {
 			return fmt.Errorf("failed to recreate service %s: %w", service.Name, err)
 		}
+
 		return nil
 	}
 
@@ -125,6 +131,7 @@ func (d *Deployment) updateService(project string, service *config.Service) erro
 		if _, err := d.runCommand(context.Background(), "docker", "rm", "-f", container+newContainerSuffix); err != nil {
 			return fmt.Errorf("update failed for %s: new container is unhealthy and cleanup failed: %v", container, err)
 		}
+
 		return fmt.Errorf("update failed for %s: new container is unhealthy: %w", container, err)
 	}
 
@@ -171,6 +178,7 @@ func (d *Deployment) processPreHooks(project string, service *config.Service) er
 			Command:    service.Hooks.Pre.Remote,
 			Container:  &config.Container{RunOnce: true},
 		}
+
 		err := d.dockerManager.CreateAndRunContainer(project, runService, "run")
 		if err != nil {
 			return err
@@ -195,6 +203,7 @@ func (d *Deployment) processPostHooks(service *config.Service, container string)
 			return fmt.Errorf("local post-hook failed: %w", err)
 		}
 	}
+
 	if service.Hooks.Post.Remote != "" {
 		if err := d.runRemoteHook(context.Background(), container, service.Hooks.Post.Remote); err != nil {
 			return fmt.Errorf("remote pre-hook failed: %w", err)
@@ -226,6 +235,7 @@ func (d *Deployment) recreateService(project string, service *config.Service) er
 		if _, rmErr := d.runCommand(context.Background(), "docker", "rm", "-f", service.Name); rmErr != nil {
 			return fmt.Errorf("recreation failed for %s: new container is unhealthy and cleanup failed: %v (original error: %w)", service.Name, rmErr, err)
 		}
+
 		return fmt.Errorf("recreation failed for %s: new container is unhealthy: %w", service.Name, err)
 	}
 
@@ -234,6 +244,7 @@ func (d *Deployment) recreateService(project string, service *config.Service) er
 
 func (d *Deployment) switchTraffic(project, service string) (string, error) {
 	newContainer := containerName(project, service, newContainerSuffix)
+
 	oldContainer, err := d.dockerManager.GetContainerID(project, service)
 	if err != nil {
 		return "", fmt.Errorf("failed to get old container ID: %v", err)

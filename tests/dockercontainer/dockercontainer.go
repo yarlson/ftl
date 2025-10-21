@@ -31,7 +31,10 @@ func NewContainer(t *testing.T) (*Container, error) {
 
 	buildCtx, err := createBuildContext()
 	require.NoError(t, err)
-	defer os.RemoveAll(buildCtx)
+
+	defer func() {
+		_ = os.RemoveAll(buildCtx)
+	}()
 
 	req := testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
@@ -83,17 +86,18 @@ func createBuildContext() (string, error) {
 	if !ok {
 		return "", fmt.Errorf("failed to get current file path")
 	}
+
 	packageDir := filepath.Dir(currentFile)
 
 	dockerfile := filepath.Join(dir, "Dockerfile")
 	if err := copyFile(filepath.Join(packageDir, "docker", "Dockerfile"), dockerfile); err != nil {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir)
 		return "", err
 	}
 
 	entrypoint := filepath.Join(dir, "entrypoint.sh")
 	if err := copyFile(filepath.Join(packageDir, "docker", "entrypoint.sh"), entrypoint); err != nil {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir)
 		return "", err
 	}
 
@@ -105,14 +109,21 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+
+	defer func() {
+		_ = sourceFile.Close()
+	}()
 
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+
+	defer func() {
+		_ = destFile.Close()
+	}()
 
 	_, err = io.Copy(destFile, sourceFile)
+
 	return err
 }

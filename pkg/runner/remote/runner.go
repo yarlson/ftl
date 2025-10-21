@@ -27,6 +27,7 @@ func NewRunner(client *ssh.Client) *Runner {
 	if client == nil {
 		return nil
 	}
+
 	return &Runner{client: client}
 }
 
@@ -36,8 +37,10 @@ func (r *Runner) Close() error {
 	if r.client == nil {
 		return nil
 	}
+
 	err := r.client.Close()
 	r.client = nil
+
 	return err
 }
 
@@ -61,10 +64,12 @@ func (r *Runner) RunCommands(ctx context.Context, commands []string) error {
 		if err != nil {
 			return fmt.Errorf("reading output of %q: %w", cmd, err)
 		}
+
 		if closeErr != nil {
 			return fmt.Errorf("closing output of %q: %w", cmd, closeErr)
 		}
 	}
+
 	return nil
 }
 
@@ -82,29 +87,31 @@ func (r *Runner) RunCommand(ctx context.Context, command string, args ...string)
 
 	// Build the full command with properly escaped arguments
 	fullCmd := command
+
 	if len(args) > 0 {
 		escapedArgs := make([]string, len(args))
 		for i, arg := range args {
 			escapedArgs[i] = escapeArg(arg)
 		}
+
 		fullCmd += " " + strings.Join(escapedArgs, " ")
 	}
 
 	// Set up command I/O
 	stdout, err := session.StdoutPipe()
 	if err != nil {
-		session.Close()
+		_ = session.Close()
 		return nil, fmt.Errorf("creating stdout pipe: %w", err)
 	}
 
 	stderr, err := session.StderrPipe()
 	if err != nil {
-		session.Close()
+		_ = session.Close()
 		return nil, fmt.Errorf("creating stderr pipe: %w", err)
 	}
 
 	if err := session.Start(fullCmd); err != nil {
-		session.Close()
+		_ = session.Close()
 		return nil, fmt.Errorf("starting command: %w", err)
 	}
 
@@ -120,8 +127,10 @@ func (r *Runner) Host() string {
 	if r.client == nil {
 		return ""
 	}
+
 	addr := r.client.RemoteAddr().String()
 	host, _, _ := strings.Cut(addr, ":")
+
 	return host
 }
 
@@ -141,11 +150,15 @@ func (r *Runner) CopyFile(ctx context.Context, src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("opening source file: %w", err)
 	}
-	defer f.Close()
+
+	defer func() {
+		_ = f.Close()
+	}()
 
 	if err := client.CopyFile(ctx, f, dst, "0644"); err != nil {
 		return fmt.Errorf("copying file: %w", err)
 	}
+
 	return nil
 }
 
@@ -172,9 +185,10 @@ func (c *commandOutput) Close() error {
 	_ = c.session.Signal(ssh.SIGTERM)
 
 	var exitErr *ssh.ExitError
+
 	err := c.session.Wait()
 	if err != nil && !errors.As(err, &exitErr) {
-		c.session.Close()
+		_ = c.session.Close()
 		return fmt.Errorf("waiting for command completion: %w", err)
 	}
 

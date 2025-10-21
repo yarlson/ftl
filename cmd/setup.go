@@ -30,24 +30,30 @@ func runSetup(cmd *cobra.Command, args []string) {
 	pConfig := pin.New("Parsing configuration", pin.WithSpinnerColor(pin.ColorCyan))
 	pConfig.Start(context.Background())
 	cancelConfig := pConfig.Start(context.Background())
+
 	cfg, err := parseConfig("ftl.yaml")
 	if err != nil {
 		pConfig.Fail(fmt.Sprintf("Failed to parse config file: %v", err))
 		cancelConfig()
+
 		return
 	}
+
 	pConfig.Stop("Configuration parsed")
 	cancelConfig()
 
 	pDocker := pin.New("Checking Docker credentials", pin.WithSpinnerColor(pin.ColorCyan))
 	pDocker.Start(context.Background())
 	cancelDocker := pDocker.Start(context.Background())
+
 	dockerCreds, err := getDockerCredentials(cfg.Services)
 	if err != nil {
 		pDocker.Fail(fmt.Sprintf("Failed to get Docker credentials: %v", err))
 		cancelDocker()
+
 		return
 	}
+
 	pDocker.Stop("Docker credentials obtained")
 	cancelDocker()
 
@@ -56,21 +62,26 @@ func runSetup(cmd *cobra.Command, args []string) {
 		console.Error("Failed to read password:", err)
 		return
 	}
+
 	console.Success("Password set successfully")
 
 	pSetup := pin.New("Setting up server", pin.WithSpinnerColor(pin.ColorCyan))
 	pSetup.Start(context.Background())
 	cancelSetup := pSetup.Start(context.Background())
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
+
 	if err := server.Setup(ctx, cfg, server.DockerCredentials{
 		Username: dockerCreds.Username,
 		Password: dockerCreds.Password,
 	}, newUserPassword, pSetup); err != nil {
 		pSetup.Fail(fmt.Sprintf("Setup failed: %v", err))
 		cancelSetup()
+
 		return
 	}
+
 	pSetup.Stop("Server setup completed successfully")
 	cancelSetup()
 
@@ -85,16 +96,19 @@ func getDockerCredentials(services []config.Service) (server.DockerCredentials, 
 	}
 
 	console.Input("Enter Docker Hub username:")
+
 	username, err := console.ReadLine()
 	if err != nil {
 		return creds, fmt.Errorf("failed to read Docker Hub username: %w", err)
 	}
 
 	console.Input("Enter Docker Hub password:")
+
 	password, err := console.ReadPassword()
 	if err != nil {
 		return creds, fmt.Errorf("failed to read Docker Hub password: %w", err)
 	}
+
 	fmt.Println()
 
 	return server.DockerCredentials{Username: username, Password: password}, nil
@@ -102,11 +116,14 @@ func getDockerCredentials(services []config.Service) (server.DockerCredentials, 
 
 func getUserPassword() (string, error) {
 	console.Input("Enter new user password:")
+
 	password, err := console.ReadPassword()
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %w", err)
 	}
+
 	fmt.Println()
+
 	return password, nil
 }
 
@@ -116,6 +133,7 @@ func needDockerHubLogin(services []config.Service) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -123,6 +141,8 @@ func imageFromDockerHub(image string) bool {
 	if image == "" {
 		return false
 	}
+
 	parts := strings.SplitN(image, "/", 2)
+
 	return len(parts) == 1 || !strings.Contains(parts[0], ".")
 }

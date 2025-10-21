@@ -17,12 +17,12 @@ server:
   ssh_key: ~/.ssh/id_rsa
 ```
 
-| Field     | Description                                                | Default Value |
-| --------- | ---------------------------------------------------------- | ------------- |
-| `host`    | Hostname or IP address of the deployment server           | Value from `project.domain` |
-| `port`    | SSH port for connecting to the server                     | `22` |
-| `user`    | SSH user for deployment                                   | Current system user |
-| `ssh_key` | Path to SSH private key                                   | Auto-detected from standard locations |
+| Field     | Description                                     | Default Value                         |
+| --------- | ----------------------------------------------- | ------------------------------------- |
+| `host`    | Hostname or IP address of the deployment server | Value from `project.domain`           |
+| `port`    | SSH port for connecting to the server           | `22`                                  |
+| `user`    | SSH user for deployment                         | Current system user                   |
+| `ssh_key` | Path to SSH private key                         | Auto-detected from standard locations |
 
 ## Smart Defaults
 
@@ -78,4 +78,4 @@ You can specify only the fields you want to customize:
 server:
   host: custom-host.example.com
   user: deployer
-``` 
+```

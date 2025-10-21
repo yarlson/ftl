@@ -46,12 +46,12 @@ server:
   ssh_key: ~/.ssh/id_rsa # Required: Path to SSH private key file
 ```
 
-| Field     | Type    | Required | Default | Description                      |
-| --------- | ------- | -------- | ------- | -------------------------------- |
+| Field     | Type    | Required | Default        | Description                      |
+| --------- | ------- | -------- | -------------- | -------------------------------- |
 | `host`    | string  | No       | project.domain | Server hostname or IP address    |
-| `port`    | integer | No       | 22      | SSH port number                  |
-| `user`    | string  | No       | Current user | SSH username for authentication  |
-| `ssh_key` | string  | Yes      | -       | Path to the SSH private key file |
+| `port`    | integer | No       | 22             | SSH port number                  |
+| `user`    | string  | No       | Current user   | SSH username for authentication  |
+| `ssh_key` | string  | Yes      | -              | Path to the SSH private key file |
 
 ## Services
 

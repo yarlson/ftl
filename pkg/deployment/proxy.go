@@ -73,6 +73,7 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 	nginxConfig = strings.TrimSpace(nginxConfig)
 
 	configPath := filepath.Join(projectPath, "nginx")
+
 	_, err = d.runCommand(context.Background(), "mkdir", "-p", configPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to create nginx config directory: %w", err)
@@ -82,7 +83,10 @@ func (d *Deployment) prepareNginxConfig(cfg *config.Config, projectPath string) 
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary file: %w", err)
 	}
-	defer os.Remove(tmpFile.Name())
+
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	if _, err := tmpFile.WriteString(nginxConfig); err != nil {
 		return "", fmt.Errorf("failed to write nginx config to temporary file: %w", err)
